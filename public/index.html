@@ -916,6 +916,174 @@
                 margin-left: var(--drift-dist);
             }
         }
+
+        /* ─── Credit Counter ─── */
+        .credit-badge {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 100;
+            background: rgba(26, 18, 69, 0.9);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.85rem;
+            color: var(--gold);
+            backdrop-filter: blur(12px);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .credit-badge:hover {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+        }
+
+        /* ─── Paywall Modal ─── */
+        .paywall-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .paywall-overlay.show {
+            display: flex;
+        }
+
+        .paywall-modal {
+            background: linear-gradient(135deg, #1a1245 0%, #0a0e2a 100%);
+            border: 2px solid rgba(255, 215, 0, 0.3);
+            border-radius: 24px;
+            padding: 36px 28px;
+            max-width: 640px;
+            width: 100%;
+            text-align: center;
+            animation: modalPop 0.3s ease-out;
+        }
+
+        @keyframes modalPop {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .paywall-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.5rem;
+            color: var(--gold);
+            margin-bottom: 8px;
+        }
+
+        .paywall-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 520px) {
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .pricing-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 215, 0, 0.15);
+            border-radius: 16px;
+            padding: 24px 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .pricing-card:hover {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(255, 215, 0, 0.15);
+        }
+
+        .pricing-card.featured {
+            border-color: rgba(255, 215, 0, 0.5);
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .pricing-badge {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--gold);
+            color: #1a1245;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 3px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .pricing-emoji {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .pricing-count {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.1rem;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .pricing-price {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.6rem;
+            color: var(--gold);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .pricing-per {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .paywall-close {
+            margin-top: 8px;
+            padding: 8px 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .paywall-close:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.8);
+        }
     </style>
 </head>
 
@@ -923,6 +1091,43 @@
 
     <!-- Floating background creatures -->
     <div class="bg-creatures" id="bgCreatures"></div>
+
+    <!-- Credit Counter Badge -->
+    <div class="credit-badge" id="creditBadge" onclick="showPaywall()">
+        🎫 <span id="creditCount">1 free card</span>
+    </div>
+
+    <!-- Paywall Modal -->
+    <div class="paywall-overlay" id="paywallOverlay">
+        <div class="paywall-modal">
+            <div class="paywall-title">⚡ Get More Pokemon Cards!</div>
+            <div class="paywall-subtitle">You've used your free card. Choose a plan to keep creating!</div>
+            <div class="pricing-grid">
+                <div class="pricing-card" onclick="checkout('single')">
+                    <div class="pricing-emoji">🃏</div>
+                    <div class="pricing-count">1 Card</div>
+                    <div class="pricing-price">$1.49</div>
+                    <div class="pricing-per">one-time</div>
+                </div>
+                <div class="pricing-card featured" onclick="checkout('pack5')">
+                    <div class="pricing-badge">⭐ POPULAR</div>
+                    <div class="pricing-emoji">🎴</div>
+                    <div class="pricing-count">5 Cards</div>
+                    <div class="pricing-price">$2.99</div>
+                    <div class="pricing-per">$0.60 per card</div>
+                </div>
+                <div class="pricing-card featured" onclick="checkout('pack10')">
+                    <div class="pricing-badge">🏆 BEST VALUE</div>
+                    <div class="pricing-emoji">📦</div>
+                    <div class="pricing-count">10 Cards</div>
+                    <div class="pricing-price">$4.99</div>
+                    <div class="pricing-per">$0.50 per card</div>
+                </div>
+            </div>
+            <div class="paywall-subtitle">💳 Credit Card & Alipay supported</div>
+            <button class="paywall-close" onclick="hidePaywall()">Maybe Later</button>
+        </div>
+    </div>
 
     <div class="hero">
         <h1>🎨 DIY Pokemon Card Maker</h1>
@@ -1188,6 +1393,87 @@
         const choices = { color: null, animal: null, power: null };
         const creations = [];
         let photoBase64 = null;
+        let creditState = { freeUsed: false, credits: 0 };
+
+        // ─── Credit / Payment System ───
+        async function fetchCredits() {
+            try {
+                const resp = await fetch('/api/credits');
+                creditState = await resp.json();
+            } catch { /* offline fallback */ }
+            updateCreditBadge();
+        }
+
+        function updateCreditBadge() {
+            const el = document.getElementById('creditCount');
+            if (!creditState.freeUsed) {
+                el.textContent = '1 free card';
+            } else if (creditState.credits > 0) {
+                el.textContent = `${creditState.credits} card${creditState.credits > 1 ? 's' : ''} left`;
+            } else {
+                el.textContent = 'Get more cards';
+            }
+        }
+
+        function showPaywall() {
+            document.getElementById('paywallOverlay').classList.add('show');
+        }
+
+        function hidePaywall() {
+            document.getElementById('paywallOverlay').classList.remove('show');
+        }
+
+        async function checkout(plan) {
+            try {
+                const resp = await fetch('/api/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan }),
+                });
+                const data = await resp.json();
+                if (data.url) window.location.href = data.url;
+                else alert('Failed to start checkout');
+            } catch (err) {
+                alert('Checkout error: ' + err.message);
+            }
+        }
+
+        // Handle payment success redirect
+        (function checkPaymentReturn() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('payment') === 'success') {
+                const credits = params.get('credits');
+                // Clean URL
+                window.history.replaceState({}, '', '/');
+                // Show success message
+                setTimeout(() => {
+                    fetchCredits();
+                    const msg = document.getElementById('errorMsg');
+                    msg.textContent = `🎉 Payment successful! ${credits} card${credits > 1 ? 's' : ''} added to your account!`;
+                    msg.style.background = 'rgba(78, 205, 196, 0.2)';
+                    msg.style.borderColor = 'rgba(78, 205, 196, 0.4)';
+                    msg.classList.add('show');
+                    setTimeout(() => msg.classList.remove('show'), 5000);
+                }, 500);
+            } else if (params.get('payment') === 'cancelled') {
+                window.history.replaceState({}, '', '/');
+            }
+        })();
+
+        // Handle 402 no-credits error from API
+        function handleApiResponse(resp, data) {
+            if (resp.status === 402 && data.error === 'no_credits') {
+                creditState.freeUsed = true;
+                creditState.credits = 0;
+                updateCreditBadge();
+                showPaywall();
+                return false; // Signal: don't proceed
+            }
+            return true; // OK to proceed
+        }
+
+        // Fetch credits on load
+        fetchCredits();
 
         const TYPE_EMOJI = {
             Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
@@ -1289,6 +1575,7 @@
                     body: JSON.stringify({ photo: photoBase64, kidName, email }),
                 });
                 const data = await resp.json();
+                if (!handleApiResponse(resp, data)) { loading.classList.remove('show'); btn.textContent = '⚡ Create My Pokemon Card!'; btn.disabled = false; return; }
                 if (!resp.ok) throw new Error(data.error || 'Something went wrong');
 
                 loading.classList.remove('show');
@@ -1317,6 +1604,7 @@
                 celebrate();
                 creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
                 updateGallery();
+                if (data.creditsRemaining !== undefined) { creditState.freeUsed = true; creditState.credits = data.creditsRemaining; updateCreditBadge(); }
             } catch (err) {
                 loading.classList.remove('show');
                 error.textContent = '😢 ' + err.message;
@@ -1414,6 +1702,7 @@
                     body: JSON.stringify({ ...choices, kidName, email }),
                 });
                 const data = await resp.json();
+                if (!handleApiResponse(resp, data)) { loading.classList.remove('show'); btn.textContent = '⚡ Create My Pokemon Card!'; btn.disabled = false; return; }
                 if (!resp.ok) throw new Error(data.error || 'Something went wrong');
 
                 loading.classList.remove('show');
@@ -1433,6 +1722,7 @@
                 celebrate();
                 creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
                 updateGallery();
+                if (data.creditsRemaining !== undefined) { creditState.freeUsed = true; creditState.credits = data.creditsRemaining; updateCreditBadge(); }
             } catch (err) {
                 loading.classList.remove('show');
                 error.textContent = '😢 ' + err.message;

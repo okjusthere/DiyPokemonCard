@@ -13,9 +13,73 @@ GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Inter-Bold.ttf'), 'C
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ─── Stripe ───
+const Stripe = require('stripe');
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  console.log('   Stripe:   ✅ Ready');
+} else {
+  console.log('   Stripe:   ❌ (Set STRIPE_SECRET_KEY in .env)');
+}
+
+// Webhook needs raw body — MUST come before express.json()
+app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!stripe) return res.status(503).send('Stripe not configured');
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('   Webhook signature failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const ip = session.metadata?.ip;
+    const credits = parseInt(session.metadata?.credits) || 0;
+    if (ip && credits > 0) {
+      const record = creditMap.get(ip) || { free: false, credits: 0 };
+      record.credits += credits;
+      creditMap.set(ip, record);
+      console.log(`   💰 Payment confirmed: +${credits} credits for IP ${ip} (total: ${record.credits})`);
+    }
+  }
+  res.json({ received: true });
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ─── Credit System (IP-based) ───
+const PLANS = {
+  single: { credits: 1, price: 149, label: '1 Card — $1.49' },
+  pack5: { credits: 5, price: 299, label: '5 Cards — $2.99' },
+  pack10: { credits: 10, price: 499, label: '10 Cards — $4.99' },
+};
+const creditMap = new Map(); // IP → { free: bool, credits: number }
+
+function getCredits(ip) {
+  return creditMap.get(ip) || { free: false, credits: 0 };
+}
+
+function useCredit(ip) {
+  const record = getCredits(ip);
+  if (!record.free) {
+    // First card is free
+    record.free = true;
+    creditMap.set(ip, record);
+    return { ok: true, remaining: record.credits, wasFree: true };
+  }
+  if (record.credits > 0) {
+    record.credits--;
+    creditMap.set(ip, record);
+    return { ok: true, remaining: record.credits, wasFree: false };
+  }
+  return { ok: false, remaining: 0 };
+}
 
 // ─── Email transporter ───
 let transporter = null;
@@ -299,6 +363,10 @@ app.post('/api/ai/pokemon-create', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress;
   if (!checkAIRate(ip)) return res.status(429).json({ error: 'Too many requests — please wait a minute! ⏳' });
 
+  // Check credits
+  const credit = useCredit(ip);
+  if (!credit.ok) return res.status(402).json({ error: 'no_credits', remaining: 0 });
+
   const { color, animal, power, kidName, email } = req.body;
   if (!color || !animal || !power) return res.status(400).json({ error: 'Missing fields' });
 
@@ -419,7 +487,7 @@ Rules: name max 12 chars, cute & easy to pronounce for 6-year-olds. HP between 4
       }
     }
 
-    res.json({ imageUrl, name: pokemonName, cardData, emailSent });
+    res.json({ imageUrl, name: pokemonName, cardData, emailSent, creditsRemaining: credit.remaining, wasFree: credit.wasFree });
   } catch (err) {
     console.error('AI Pokemon Create error:', err.message);
     console.error('   Error details:', JSON.stringify({ status: err.status, code: err.code, type: err.type, body: err.error }, null, 2));
@@ -433,6 +501,10 @@ app.post('/api/ai/pokemon-from-photo', async (req, res) => {
 
   const ip = req.ip || req.connection.remoteAddress;
   if (!checkAIRate(ip)) return res.status(429).json({ error: 'Too many requests — please wait a minute! ⏳' });
+
+  // Check credits
+  const credit = useCredit(ip);
+  if (!credit.ok) return res.status(402).json({ error: 'no_credits', remaining: 0 });
 
   const { photo, kidName, email } = req.body;
   if (!photo) return res.status(400).json({ error: 'No photo provided' });
@@ -567,11 +639,59 @@ Rules: name max 12 chars, cute & easy to pronounce. HP 40-90. Attack damage 10-5
       }
     }
 
-    res.json({ imageUrl, name: pokemonName, cardData, emailSent, appearance: visionData.appearance });
+    res.json({ imageUrl, name: pokemonName, cardData, emailSent, appearance: visionData.appearance, creditsRemaining: credit.remaining, wasFree: credit.wasFree });
   } catch (err) {
     console.error('Photo Pokemon Create error:', err.message);
     console.error('   Error details:', JSON.stringify({ status: err.status, code: err.code, type: err.type, body: err.error }, null, 2));
     res.status(500).json({ error: `AI generation failed: ${err.message}` });
+  }
+});
+
+// ─── Credits API ───
+app.get('/api/credits', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const record = getCredits(ip);
+  res.json({
+    freeUsed: record.free,
+    credits: record.credits,
+    hasCredits: !record.free || record.credits > 0,
+  });
+});
+
+// ─── Stripe Checkout ───
+app.post('/api/checkout', async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Payment system not configured' });
+
+  const { plan } = req.body;
+  const planData = PLANS[plan];
+  if (!planData) return res.status(400).json({ error: 'Invalid plan' });
+
+  const ip = req.ip || req.connection.remoteAddress;
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'alipay'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `Pokemon Card Credits — ${planData.label}`,
+            description: `${planData.credits} AI Pokemon card generation${planData.credits > 1 ? 's' : ''}`,
+          },
+          unit_amount: planData.price,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${baseUrl}/?payment=success&credits=${planData.credits}`,
+      cancel_url: `${baseUrl}/?payment=cancelled`,
+      metadata: { ip, credits: String(planData.credits), plan },
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Checkout error:', err.message);
+    res.status(500).json({ error: 'Failed to create checkout session' });
   }
 });
 
