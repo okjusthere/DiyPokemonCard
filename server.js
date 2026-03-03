@@ -39,6 +39,7 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
 const { AzureOpenAI } = require('openai');
 let aiImage = null;  // for DALL-E 3 image generation
 let aiChat = null;   // for GPT-5-mini chat completions
+let aiVision = null; // for GPT-4o vision (photo analysis)
 
 if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
   // Azure OpenAI — two clients because the models use different api-versions
@@ -51,6 +52,11 @@ if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
     apiKey: process.env.AZURE_OPENAI_API_KEY,
     endpoint: process.env.AZURE_OPENAI_ENDPOINT,
     apiVersion: '2025-04-01-preview',
+  });
+  aiVision = new AzureOpenAI({
+    apiKey: process.env.AZURE_OPENAI_API_KEY,
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+    apiVersion: '2025-01-01-preview',
   });
   console.log('   AI:       ✅ Ready (Azure OpenAI)');
 } else {
@@ -416,6 +422,154 @@ Rules: name max 12 chars, cute & easy to pronounce for 6-year-olds. HP between 4
     res.json({ imageUrl, name: pokemonName, cardData, emailSent });
   } catch (err) {
     console.error('AI Pokemon Create error:', err.message);
+    console.error('   Error details:', JSON.stringify({ status: err.status, code: err.code, type: err.type, body: err.error }, null, 2));
+    res.status(500).json({ error: `AI generation failed: ${err.message}` });
+  }
+});
+
+// ─── Photo → Pokemon Card ───
+app.post('/api/ai/pokemon-from-photo', async (req, res) => {
+  if (!aiImage || !aiVision) return res.status(503).json({ error: 'AI service not configured' });
+
+  const ip = req.ip || req.connection.remoteAddress;
+  if (!checkAIRate(ip)) return res.status(429).json({ error: 'Too many requests — please wait a minute! ⏳' });
+
+  const { photo, kidName, email } = req.body;
+  if (!photo) return res.status(400).json({ error: 'No photo provided' });
+
+  try {
+    // Step 1: GPT-4o vision → analyze photo + generate card stats in one call
+    const visionResp = await aiVision.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'system',
+        content: `You are a creative Pokemon card designer. When given a photo of a person, you:
+1. Analyze their appearance (hair color/style, eye color, skin tone, clothing, accessories, expression, mood)
+2. Design an original cute Pokemon creature inspired by their appearance
+3. Generate full trading card stats
+
+Respond ONLY with valid JSON, no markdown. Format:
+{
+  "appearance": "Brief description of the person's key visual features",
+  "creature_prompt": "A detailed DALL-E prompt for a cute chibi-style original creature inspired by this person. Include specific colors, features, and style details. Must mention: clean white background, digital art, Japanese anime creature style, big sparkling eyes, round proportions.",
+  "name": "CuteName",
+  "hp": 70,
+  "type": "Fire",
+  "attack1": {"name": "Ember Pounce", "damage": 20, "desc": "Flip a coin. If heads, the opponent is now Burned."},
+  "attack2": {"name": "Flame Whirl", "damage": 40, "desc": "Discard 1 Energy card."},
+  "weakness": "Water",
+  "resistance": "Grass",
+  "retreatCost": 1,
+  "flavor": "A playful creature that mirrors its trainer's spirit."
+}
+Rules: name max 12 chars, cute & easy to pronounce. HP 40-90. Attack damage 10-50. Make the creature's colors, type, and personality match the person's appearance and vibe.`
+      }, {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Analyze this person and design a Pokemon creature inspired by their appearance:' },
+          { type: 'image_url', image_url: { url: photo, detail: 'low' } }
+        ]
+      }],
+      max_completion_tokens: 500,
+      response_format: { type: 'json_object' },
+    });
+
+    let visionData;
+    try {
+      visionData = JSON.parse(visionResp.choices[0].message.content);
+    } catch {
+      return res.status(500).json({ error: 'Failed to analyze photo — please try another image' });
+    }
+
+    console.log(`   Photo analyzed: ${visionData.appearance}`);
+    console.log(`   Creature prompt: ${visionData.creature_prompt?.slice(0, 80)}...`);
+
+    // Step 2: DALL-E 3 → generate creature image using the vision-generated prompt
+    const dallePrompt = visionData.creature_prompt || `A cute chibi-style fictional creature with friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design.`;
+
+    const imageResp = await aiImage.images.generate({
+      model: 'dall-e-3',
+      prompt: dallePrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+    });
+    const imageUrl = imageResp.data[0].url;
+
+    // Build card data from vision response
+    const cardData = {
+      name: visionData.name || 'Mysteon',
+      hp: visionData.hp || 60,
+      type: visionData.type || 'Normal',
+      attack1: visionData.attack1 || { name: 'Tackle', damage: 20, desc: '' },
+      attack2: visionData.attack2 || { name: 'Quick Strike', damage: 30, desc: '' },
+      weakness: visionData.weakness || 'Fighting',
+      resistance: visionData.resistance || 'Ghost',
+      retreatCost: visionData.retreatCost || 1,
+      flavor: visionData.flavor || 'A creature inspired by its trainer!',
+    };
+    const pokemonName = cardData.name;
+
+    // Send email if provided (reuse existing email logic)
+    let emailSent = false;
+    if (email && transporter) {
+      const displayName = kidName || 'Pokemon Trainer';
+      try {
+        const rawImgBuffer = await downloadImageBuffer(imageUrl);
+        const cardImgBuffer = await generateCardImage(rawImgBuffer, cardData, displayName);
+        console.log(`   Generated card image: ${cardImgBuffer.length} bytes`);
+
+        await transporter.sendMail({
+          from: `"DIY Pokemon Card 🃏" <${process.env.EMAIL_USER}>`,
+          to: email,
+          subject: `🃏 ${displayName}'s Pokemon Card — ${pokemonName}!`,
+          attachments: [
+            { filename: `${pokemonName}-card.jpg`, content: cardImgBuffer, cid: 'pokemoncard' },
+            { filename: `${pokemonName}-original.jpg`, content: rawImgBuffer, cid: 'pokemonraw' },
+          ],
+          html: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0; padding:0; background:#0a0e1a; font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a; padding:20px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1245; border-radius:20px; overflow:hidden; border:2px solid #FFD700;">
+        <tr><td style="padding:30px 40px 16px; text-align:center;">
+          <div style="font-size:26px; font-weight:bold; color:#FFD700;">🃏 Your Pokemon Trading Card!</div>
+          <div style="font-size:13px; color:rgba(255,255,255,0.5); margin-top:6px;">Created from your photo with AI ✨</div>
+        </td></tr>
+        <tr><td style="padding:0 40px; text-align:center;">
+          <img src="cid:pokemoncard" alt="${pokemonName} Card" style="width:100%; max-width:400px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.4);">
+        </td></tr>
+        <tr><td style="padding:16px 40px 8px; text-align:center;">
+          <div style="font-size:20px; font-weight:bold; color:#FFD700;">${pokemonName}</div>
+          <div style="font-size:12px; color:rgba(255,255,255,0.5); margin-top:4px;">Designed by <strong style="color:#fff;">${displayName}</strong></div>
+        </td></tr>
+        <tr><td style="padding:20px 40px 12px; text-align:center;">
+          <div style="font-size:18px; font-weight:bold; color:#FFD700;">🎨 Original AI Artwork</div>
+        </td></tr>
+        <tr><td style="padding:0 40px 20px; text-align:center;">
+          <img src="cid:pokemonraw" alt="${pokemonName}" style="width:100%; max-width:400px; border-radius:16px; border:3px solid rgba(255,215,0,0.3);">
+        </td></tr>
+        <tr><td style="padding:10px 40px 28px; text-align:center;">
+          <div style="font-size:14px; color:rgba(255,255,255,0.5); line-height:1.7;">This Pokemon was inspired by <strong style="color:#FFD700">${displayName}</strong>'s photo! ⚡<br>Save the images — they're yours forever! 💛</div>
+        </td></tr>
+        <tr><td style="background:rgba(0,0,0,0.3); padding:14px 40px; text-align:center;"><div style="font-size:11px; color:rgba(255,255,255,0.3);">DIY Pokemon Card Maker</div></td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
+          text: `Hi ${displayName}! Here's your Pokemon card "${pokemonName}" inspired by your photo! Two images are attached.`,
+        });
+        emailSent = true;
+        console.log(`   Photo Pokemon email sent to ${email} for ${displayName}`);
+      } catch (emailErr) {
+        console.error('   Email send error:', emailErr.message);
+      }
+    }
+
+    res.json({ imageUrl, name: pokemonName, cardData, emailSent, appearance: visionData.appearance });
+  } catch (err) {
+    console.error('Photo Pokemon Create error:', err.message);
     console.error('   Error details:', JSON.stringify({ status: err.status, code: err.code, type: err.type, body: err.error }, null, 2));
     res.status(500).json({ error: `AI generation failed: ${err.message}` });
   }

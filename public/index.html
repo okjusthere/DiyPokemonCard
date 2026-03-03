@@ -738,6 +738,137 @@
             text-align: center;
             color: var(--gold);
         }
+
+        /* ─── Mode Tabs ─── */
+        .mode-tabs {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .mode-tab {
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 215, 0, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.6);
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mode-tab:hover {
+            border-color: rgba(255, 215, 0, 0.4);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .mode-tab.active {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.15);
+        }
+
+        .mode-content {
+            display: none;
+        }
+
+        .mode-content.active {
+            display: block;
+        }
+
+        /* ─── Photo Upload ─── */
+        .photo-upload-area {
+            border: 2px dashed rgba(255, 215, 0, 0.3);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.03);
+            position: relative;
+        }
+
+        .photo-upload-area:hover,
+        .photo-upload-area.dragover {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .photo-upload-area .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+        }
+
+        .photo-upload-area .upload-text {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 8px;
+        }
+
+        .photo-upload-area .upload-hint {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .photo-upload-area input[type="file"] {
+            display: none;
+        }
+
+        .photo-preview-container {
+            display: none;
+            text-align: center;
+        }
+
+        .photo-preview-container.show {
+            display: block;
+        }
+
+        .photo-preview {
+            max-width: 280px;
+            max-height: 280px;
+            border-radius: 16px;
+            border: 3px solid rgba(255, 215, 0, 0.3);
+            object-fit: cover;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .photo-change-btn {
+            margin-top: 12px;
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            background: transparent;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .photo-change-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .appearance-badge {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 10px;
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
+        }
+
+        .appearance-badge strong {
+            color: var(--gold);
+        }
     </style>
 </head>
 
@@ -745,99 +876,158 @@
 
     <div class="hero">
         <h1>🎨 DIY Pokemon Card Maker</h1>
-        <p>Pick a color, an animal, and a superpower — AI will create your very own Pokemon trading card! ⚡</p>
+        <p>Create your very own AI-powered Pokemon trading card! ⚡</p>
     </div>
 
     <div class="creator-container">
 
-        <!-- Name & Email -->
-        <div class="step">
-            <div class="step-label"><span class="step-num">✨</span> Your Info</div>
-            <div class="input-row">
-                <div class="input-group">
-                    <label>Your Name</label>
-                    <input type="text" id="kidName" placeholder="Your name" maxlength="30">
+        <!-- Mode Tabs -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" onclick="switchMode('design')" id="tabDesign">🎨 Design from
+                Scratch</button>
+            <button class="mode-tab" onclick="switchMode('photo')" id="tabPhoto">📸 Create from Photo</button>
+        </div>
+
+        <!-- ═══ DESIGN MODE ═══ -->
+        <div class="mode-content active" id="modeDesign">
+
+            <!-- Name & Email -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">✨</span> Your Info</div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Your Name</label>
+                        <input type="text" id="kidName" placeholder="Your name" maxlength="30">
+                    </div>
+                    <div class="input-group">
+                        <label>Email (optional)</label>
+                        <input type="email" id="kidEmail" placeholder="parent@email.com">
+                    </div>
                 </div>
-                <div class="input-group">
-                    <label>Email (optional)</label>
-                    <input type="email" id="kidEmail" placeholder="parent@email.com">
+                <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
+            </div>
+
+            <!-- Color -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">1</span> Pick a Color</div>
+                <div class="options">
+                    <button class="opt-btn" onclick="pick('color','red',this)"><span
+                            class="opt-emoji">🔴</span>Red</button>
+                    <button class="opt-btn" onclick="pick('color','blue',this)"><span
+                            class="opt-emoji">🔵</span>Blue</button>
+                    <button class="opt-btn" onclick="pick('color','green',this)"><span
+                            class="opt-emoji">🟢</span>Green</button>
+                    <button class="opt-btn" onclick="pick('color','yellow',this)"><span
+                            class="opt-emoji">🟡</span>Yellow</button>
+                    <button class="opt-btn" onclick="pick('color','purple',this)"><span
+                            class="opt-emoji">🟣</span>Purple</button>
+                    <button class="opt-btn" onclick="pick('color','pink',this)"><span
+                            class="opt-emoji">🩷</span>Pink</button>
+                    <button class="opt-btn" onclick="pick('color','orange',this)"><span
+                            class="opt-emoji">🟠</span>Orange</button>
+                    <button class="opt-btn" onclick="pick('color','white',this)"><span
+                            class="opt-emoji">⚪</span>White</button>
                 </div>
             </div>
-            <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
-        </div>
 
-        <!-- Color -->
-        <div class="step">
-            <div class="step-label"><span class="step-num">1</span> Pick a Color</div>
-            <div class="options">
-                <button class="opt-btn" onclick="pick('color','red',this)"><span class="opt-emoji">🔴</span>Red</button>
-                <button class="opt-btn" onclick="pick('color','blue',this)"><span
-                        class="opt-emoji">🔵</span>Blue</button>
-                <button class="opt-btn" onclick="pick('color','green',this)"><span
-                        class="opt-emoji">🟢</span>Green</button>
-                <button class="opt-btn" onclick="pick('color','yellow',this)"><span
-                        class="opt-emoji">🟡</span>Yellow</button>
-                <button class="opt-btn" onclick="pick('color','purple',this)"><span
-                        class="opt-emoji">🟣</span>Purple</button>
-                <button class="opt-btn" onclick="pick('color','pink',this)"><span
-                        class="opt-emoji">🩷</span>Pink</button>
-                <button class="opt-btn" onclick="pick('color','orange',this)"><span
-                        class="opt-emoji">🟠</span>Orange</button>
-                <button class="opt-btn" onclick="pick('color','white',this)"><span
-                        class="opt-emoji">⚪</span>White</button>
+            <!-- Animal -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">2</span> Pick an Animal</div>
+                <div class="options">
+                    <button class="opt-btn" onclick="pick('animal','cat',this)"><span
+                            class="opt-emoji">🐱</span>Cat</button>
+                    <button class="opt-btn" onclick="pick('animal','dragon',this)"><span
+                            class="opt-emoji">🐉</span>Dragon</button>
+                    <button class="opt-btn" onclick="pick('animal','rabbit',this)"><span
+                            class="opt-emoji">🐰</span>Rabbit</button>
+                    <button class="opt-btn" onclick="pick('animal','bird',this)"><span
+                            class="opt-emoji">🐦</span>Bird</button>
+                    <button class="opt-btn" onclick="pick('animal','shark',this)"><span
+                            class="opt-emoji">🦈</span>Shark</button>
+                    <button class="opt-btn" onclick="pick('animal','fox',this)"><span
+                            class="opt-emoji">🦊</span>Fox</button>
+                    <button class="opt-btn" onclick="pick('animal','turtle',this)"><span
+                            class="opt-emoji">🐢</span>Turtle</button>
+                    <button class="opt-btn" onclick="pick('animal','wolf',this)"><span
+                            class="opt-emoji">🐺</span>Wolf</button>
+                    <button class="opt-btn" onclick="pick('animal','bear',this)"><span
+                            class="opt-emoji">🐻</span>Bear</button>
+                    <button class="opt-btn" onclick="pick('animal','unicorn',this)"><span
+                            class="opt-emoji">🦄</span>Unicorn</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Animal -->
-        <div class="step">
-            <div class="step-label"><span class="step-num">2</span> Pick an Animal</div>
-            <div class="options">
-                <button class="opt-btn" onclick="pick('animal','cat',this)"><span
-                        class="opt-emoji">🐱</span>Cat</button>
-                <button class="opt-btn" onclick="pick('animal','dragon',this)"><span
-                        class="opt-emoji">🐉</span>Dragon</button>
-                <button class="opt-btn" onclick="pick('animal','rabbit',this)"><span
-                        class="opt-emoji">🐰</span>Rabbit</button>
-                <button class="opt-btn" onclick="pick('animal','bird',this)"><span
-                        class="opt-emoji">🐦</span>Bird</button>
-                <button class="opt-btn" onclick="pick('animal','shark',this)"><span
-                        class="opt-emoji">🦈</span>Shark</button>
-                <button class="opt-btn" onclick="pick('animal','fox',this)"><span
-                        class="opt-emoji">🦊</span>Fox</button>
-                <button class="opt-btn" onclick="pick('animal','turtle',this)"><span
-                        class="opt-emoji">🐢</span>Turtle</button>
-                <button class="opt-btn" onclick="pick('animal','wolf',this)"><span
-                        class="opt-emoji">🐺</span>Wolf</button>
-                <button class="opt-btn" onclick="pick('animal','bear',this)"><span
-                        class="opt-emoji">🐻</span>Bear</button>
-                <button class="opt-btn" onclick="pick('animal','unicorn',this)"><span
-                        class="opt-emoji">🦄</span>Unicorn</button>
+            <!-- Power -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">3</span> Pick a Superpower</div>
+                <div class="options">
+                    <button class="opt-btn" onclick="pick('power','flying',this)"><span
+                            class="opt-emoji">🦅</span>Flying</button>
+                    <button class="opt-btn" onclick="pick('power','fire',this)"><span
+                            class="opt-emoji">🔥</span>Fire</button>
+                    <button class="opt-btn" onclick="pick('power','ice',this)"><span
+                            class="opt-emoji">❄️</span>Ice</button>
+                    <button class="opt-btn" onclick="pick('power','electric',this)"><span
+                            class="opt-emoji">⚡</span>Electric</button>
+                    <button class="opt-btn" onclick="pick('power','invisible',this)"><span
+                            class="opt-emoji">👻</span>Invisible</button>
+                    <button class="opt-btn" onclick="pick('power','water',this)"><span
+                            class="opt-emoji">🌊</span>Water</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Power -->
-        <div class="step">
-            <div class="step-label"><span class="step-num">3</span> Pick a Superpower</div>
-            <div class="options">
-                <button class="opt-btn" onclick="pick('power','flying',this)"><span
-                        class="opt-emoji">🦅</span>Flying</button>
-                <button class="opt-btn" onclick="pick('power','fire',this)"><span
-                        class="opt-emoji">🔥</span>Fire</button>
-                <button class="opt-btn" onclick="pick('power','ice',this)"><span class="opt-emoji">❄️</span>Ice</button>
-                <button class="opt-btn" onclick="pick('power','electric',this)"><span
-                        class="opt-emoji">⚡</span>Electric</button>
-                <button class="opt-btn" onclick="pick('power','invisible',this)"><span
-                        class="opt-emoji">👻</span>Invisible</button>
-                <button class="opt-btn" onclick="pick('power','water',this)"><span
-                        class="opt-emoji">🌊</span>Water</button>
+            <!-- Generate (Design Mode) -->
+            <div class="generate-wrap">
+                <button class="btn-generate" id="btnGenerate" onclick="generatePokemon()" disabled>⚡ Create My Pokemon
+                    Card!</button>
             </div>
-        </div>
 
-        <!-- Generate -->
-        <div class="generate-wrap">
-            <button class="btn-generate" id="btnGenerate" onclick="generatePokemon()" disabled>⚡ Create My Pokemon
-                Card!</button>
-        </div>
+        </div> <!-- end modeDesign -->
+
+        <!-- ═══ PHOTO MODE ═══ -->
+        <div class="mode-content" id="modePhoto">
+
+            <!-- Name & Email -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">✨</span> Your Info</div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Your Name</label>
+                        <input type="text" id="photoKidName" placeholder="Your name" maxlength="30">
+                    </div>
+                    <div class="input-group">
+                        <label>Email (optional)</label>
+                        <input type="email" id="photoKidEmail" placeholder="parent@email.com">
+                    </div>
+                </div>
+                <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
+            </div>
+
+            <!-- Photo Upload -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">📸</span> Upload Your Photo</div>
+                <div class="photo-upload-area" id="photoUploadArea">
+                    <input type="file" id="photoInput" accept="image/*" capture="user">
+                    <div class="upload-icon">📷</div>
+                    <div class="upload-text">Tap to take a photo or upload one</div>
+                    <div class="upload-hint">Drag & drop also works · JPG, PNG up to 5MB</div>
+                </div>
+                <div class="photo-preview-container" id="photoPreviewContainer">
+                    <img id="photoPreview" class="photo-preview" alt="Preview">
+                    <button class="photo-change-btn" onclick="changePhoto()">🔄 Change Photo</button>
+                </div>
+                <div class="input-hint" style="margin-top: 12px;">🤖 AI will analyze your photo and create a Pokemon
+                    creature inspired by your look!</div>
+            </div>
+
+            <!-- Generate Button (Photo Mode) -->
+            <div class="generate-wrap">
+                <button class="btn-generate" id="btnGeneratePhoto" disabled onclick="generateFromPhoto()">
+                    ⚡ Create My Pokemon Card!
+                </button>
+            </div>
+
+        </div> <!-- end modePhoto -->
 
         <!-- Loading -->
         <div class="loading-overlay" id="loadingState">
@@ -947,11 +1137,145 @@
     <script>
         const choices = { color: null, animal: null, power: null };
         const creations = [];
+        let photoBase64 = null;
 
         const TYPE_EMOJI = {
             Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
             Psychic: '🔮', Ice: '❄️', Ghost: '👻', Normal: '⚪', Flying: '🦅'
         };
+
+        // ─── Mode Switching ───
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+            if (mode === 'design') {
+                document.getElementById('tabDesign').classList.add('active');
+                document.getElementById('modeDesign').classList.add('active');
+            } else {
+                document.getElementById('tabPhoto').classList.add('active');
+                document.getElementById('modePhoto').classList.add('active');
+            }
+            // Hide any previous results
+            document.getElementById('cardResult').classList.remove('show');
+            document.getElementById('errorMsg').classList.remove('show');
+        }
+
+        // ─── Photo Upload ───
+        const uploadArea = document.getElementById('photoUploadArea');
+        const photoInput = document.getElementById('photoInput');
+        const previewContainer = document.getElementById('photoPreviewContainer');
+        const previewImg = document.getElementById('photoPreview');
+
+        uploadArea.addEventListener('click', () => photoInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handlePhotoFile(e.dataTransfer.files[0]);
+        });
+        photoInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handlePhotoFile(e.target.files[0]);
+        });
+
+        function handlePhotoFile(file) {
+            if (!file.type.startsWith('image/')) return alert('Please upload an image file');
+            if (file.size > 5 * 1024 * 1024) return alert('Image too large — max 5MB');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Resize to max 512px for faster upload
+                const img = new Image();
+                img.onload = () => {
+                    const maxSize = 512;
+                    let w = img.width, h = img.height;
+                    if (w > maxSize || h > maxSize) {
+                        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+                        else { w = Math.round(w * maxSize / h); h = maxSize; }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    photoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    previewImg.src = photoBase64;
+                    uploadArea.style.display = 'none';
+                    previewContainer.classList.add('show');
+                    document.getElementById('btnGeneratePhoto').disabled = false;
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function changePhoto() {
+            photoBase64 = null;
+            previewContainer.classList.remove('show');
+            uploadArea.style.display = '';
+            document.getElementById('btnGeneratePhoto').disabled = true;
+            photoInput.value = '';
+        }
+
+        // ─── Generate from photo ───
+        async function generateFromPhoto() {
+            if (!photoBase64) return;
+
+            const btn = document.getElementById('btnGeneratePhoto');
+            const loading = document.getElementById('loadingState');
+            const result = document.getElementById('cardResult');
+            const error = document.getElementById('errorMsg');
+            const kidName = document.getElementById('photoKidName').value.trim();
+            const email = document.getElementById('photoKidEmail').value.trim();
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Analyzing photo...';
+            result.classList.remove('show');
+            error.classList.remove('show');
+            loading.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/ai/pokemon-from-photo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photo: photoBase64, kidName, email }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Something went wrong');
+
+                loading.classList.remove('show');
+                renderCard({ ...data, kidName });
+                result.classList.add('show');
+
+                // Show appearance analysis
+                if (data.appearance) {
+                    let badge = document.getElementById('appearanceBadge');
+                    if (!badge) {
+                        badge = document.createElement('div');
+                        badge.id = 'appearanceBadge';
+                        badge.className = 'appearance-badge';
+                        document.getElementById('cardResult').querySelector('.card-actions').before(badge);
+                    }
+                    badge.innerHTML = `<strong>🔍 AI Analysis:</strong> ${data.appearance}`;
+                    badge.style.display = 'block';
+                }
+
+                // Email status
+                const emailStatus = document.getElementById('resultEmailStatus');
+                if (data.emailSent) emailStatus.textContent = `📧 Card sent to ${email}!`;
+                else if (email) emailStatus.textContent = '📧 Email delivery pending...';
+                else emailStatus.textContent = '';
+
+                celebrate();
+                creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
+                updateGallery();
+            } catch (err) {
+                loading.classList.remove('show');
+                error.textContent = '😢 ' + err.message;
+                error.classList.add('show');
+            }
+
+            btn.textContent = '⚡ Create My Pokemon Card!';
+            btn.disabled = false;
+        }
 
         function pick(type, val, btn) {
             choices[type] = val;
@@ -1071,6 +1395,8 @@
 
         function createAnother() {
             document.getElementById('cardResult').classList.remove('show');
+            const badge = document.getElementById('appearanceBadge');
+            if (badge) badge.style.display = 'none';
             choices.color = null; choices.animal = null; choices.power = null;
             document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
             document.getElementById('btnGenerate').disabled = true;
