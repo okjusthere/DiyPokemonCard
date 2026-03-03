@@ -1432,7 +1432,7 @@
                 });
                 const data = await resp.json();
                 if (data.url) window.location.href = data.url;
-                else alert('Failed to start checkout');
+                else alert(data.error || 'Failed to start checkout');
             } catch (err) {
                 alert('Checkout error: ' + err.message);
             }

@@ -714,29 +714,44 @@ app.post('/api/checkout', async (req, res) => {
   const ip = getClientIP(req);
   const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
 
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'alipay'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `Pokemon Card Credits — ${planData.label}`,
-            description: `${planData.credits} AI Pokemon card generation${planData.credits > 1 ? 's' : ''}`,
-          },
-          unit_amount: planData.price,
+  const sessionConfig = {
+    line_items: [{
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: `Pokemon Card Credits — ${planData.label}`,
+          description: `${planData.credits} AI Pokemon card generation${planData.credits > 1 ? 's' : ''}`,
         },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `${baseUrl}/?payment=success&credits=${planData.credits}`,
-      cancel_url: `${baseUrl}/?payment=cancelled`,
-      metadata: { ip, credits: String(planData.credits), plan },
+        unit_amount: planData.price,
+      },
+      quantity: 1,
+    }],
+    mode: 'payment',
+    success_url: `${baseUrl}/?payment=success&credits=${planData.credits}`,
+    cancel_url: `${baseUrl}/?payment=cancelled`,
+    metadata: { ip, credits: String(planData.credits), plan },
+  };
+
+  try {
+    // Try with card + alipay first
+    const session = await stripe.checkout.sessions.create({
+      ...sessionConfig,
+      payment_method_types: ['card', 'alipay'],
     });
     res.json({ url: session.url });
-  } catch (err) {
-    console.error('Checkout error:', err.message, '| baseUrl:', baseUrl, '| plan:', plan);
-    res.status(500).json({ error: 'Failed to create checkout session: ' + err.message });
+  } catch (err1) {
+    console.warn('Checkout with Alipay failed, retrying card-only:', err1.message);
+    try {
+      // Fallback: card only (Alipay may not be enabled)
+      const session = await stripe.checkout.sessions.create({
+        ...sessionConfig,
+        payment_method_types: ['card'],
+      });
+      res.json({ url: session.url });
+    } catch (err2) {
+      console.error('Checkout error:', err2.message, '| baseUrl:', baseUrl, '| plan:', plan);
+      res.status(500).json({ error: 'Failed to create checkout session: ' + err2.message });
+    }
   }
 });
 
