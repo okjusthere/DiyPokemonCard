@@ -5,6 +5,8 @@ const path = require('path');
 const https = require('https');
 const nodemailer = require('nodemailer');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
+const Database = require('better-sqlite3');
+const fs = require('fs');
 
 // Register bundled fonts (works on any server — no system fonts needed)
 GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Inter-Regular.ttf'), 'CardFont');
@@ -40,10 +42,10 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
     const ip = session.metadata?.ip;
     const credits = parseInt(session.metadata?.credits) || 0;
     if (ip && credits > 0) {
-      const record = creditMap.get(ip) || { free: false, credits: 0 };
-      record.credits += credits;
-      creditMap.set(ip, record);
-      console.log(`   💰 Payment confirmed: +${credits} credits for IP ${ip} (total: ${record.credits})`);
+      stmtAddCredits.run(ip, credits);
+      stmtLogPayment.run(ip, session.metadata?.plan || 'unknown', credits, session.id);
+      const updated = getCredits(ip);
+      console.log(`   💰 Payment confirmed: +${credits} credits for IP ${ip} (total: ${updated.credits})`);
     }
   }
   res.json({ received: true });
@@ -53,30 +55,63 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── Credit System (IP-based) ───
+// ─── Credit System (SQLite) ───
 const PLANS = {
   single: { credits: 1, price: 149, label: '1 Card — $1.49' },
   pack5: { credits: 5, price: 299, label: '5 Cards — $2.99' },
   pack10: { credits: 10, price: 499, label: '10 Cards — $4.99' },
 };
-const creditMap = new Map(); // IP → { free: bool, credits: number }
+
+// Initialize SQLite database
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
+const db = new Database(path.join(dataDir, 'credits.db'));
+db.pragma('journal_mode = WAL'); // better performance
+db.exec(`
+  CREATE TABLE IF NOT EXISTS credits (
+    ip TEXT PRIMARY KEY,
+    free_used INTEGER DEFAULT 0,
+    credits INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS payment_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT,
+    plan TEXT,
+    credits_added INTEGER,
+    stripe_session_id TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+console.log('   DB:       ✅ Ready (SQLite)');
+
+// Prepared statements for performance
+const stmtGetCredits = db.prepare('SELECT free_used, credits FROM credits WHERE ip = ?');
+const stmtUpsertCredits = db.prepare(`
+  INSERT INTO credits (ip, free_used, credits, updated_at) VALUES (?, ?, ?, datetime('now'))
+  ON CONFLICT(ip) DO UPDATE SET free_used=excluded.free_used, credits=excluded.credits, updated_at=datetime('now')
+`);
+const stmtAddCredits = db.prepare(`
+  INSERT INTO credits (ip, free_used, credits, updated_at) VALUES (?, 0, ?, datetime('now'))
+  ON CONFLICT(ip) DO UPDATE SET credits = credits + excluded.credits, updated_at=datetime('now')
+`);
+const stmtLogPayment = db.prepare('INSERT INTO payment_log (ip, plan, credits_added, stripe_session_id) VALUES (?, ?, ?, ?)');
 
 function getCredits(ip) {
-  return creditMap.get(ip) || { free: false, credits: 0 };
+  const row = stmtGetCredits.get(ip);
+  return row ? { free: !!row.free_used, credits: row.credits } : { free: false, credits: 0 };
 }
 
 function useCredit(ip) {
   const record = getCredits(ip);
   if (!record.free) {
     // First card is free
-    record.free = true;
-    creditMap.set(ip, record);
+    stmtUpsertCredits.run(ip, 1, record.credits);
     return { ok: true, remaining: record.credits, wasFree: true };
   }
   if (record.credits > 0) {
-    record.credits--;
-    creditMap.set(ip, record);
-    return { ok: true, remaining: record.credits, wasFree: false };
+    stmtUpsertCredits.run(ip, 1, record.credits - 1);
+    return { ok: true, remaining: record.credits - 1, wasFree: false };
   }
   return { ok: false, remaining: 0 };
 }

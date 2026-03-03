@@ -8,8 +8,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Data files (RSVP data stays on server)
-rsvp-data.json
+# Data (SQLite database — stays on server)
+data/
 
 # Logs
 *.log
