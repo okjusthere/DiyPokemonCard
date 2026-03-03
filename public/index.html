@@ -869,10 +869,60 @@
         .appearance-badge strong {
             color: var(--gold);
         }
+
+        /* ─── Floating Background Creatures ─── */
+        .bg-creatures {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-creature {
+            position: absolute;
+            font-size: 1.4rem;
+            opacity: 0.12;
+            animation: floatBounce var(--dur) ease-in-out infinite, driftX var(--drift) ease-in-out infinite alternate;
+            filter: grayscale(0.3);
+        }
+
+        @keyframes floatBounce {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(var(--rot-start));
+            }
+
+            25% {
+                transform: translateY(-18px) rotate(calc(var(--rot-start) + 5deg));
+            }
+
+            50% {
+                transform: translateY(-6px) rotate(var(--rot-start));
+            }
+
+            75% {
+                transform: translateY(-22px) rotate(calc(var(--rot-start) - 5deg));
+            }
+        }
+
+        @keyframes driftX {
+            0% {
+                margin-left: 0;
+            }
+
+            100% {
+                margin-left: var(--drift-dist);
+            }
+        }
     </style>
 </head>
 
 <body>
+
+    <!-- Floating background creatures -->
+    <div class="bg-creatures" id="bgCreatures"></div>
 
     <div class="hero">
         <h1>🎨 DIY Pokemon Card Maker</h1>
@@ -1432,6 +1482,28 @@
                 grid.appendChild(item);
             });
         }
+
+        // ─── Floating Background Creatures ───
+        (function spawnBgCreatures() {
+            const creatures = ['⚡', '🔥', '💧', '🌿', '🐱', '🐉', '🐰', '🦊', '🐺', '🐢', '🦄', '🐻', '🦈', '🐦', '👻', '❄️', '🌊', '🔮', '🌟', '✨'];
+            const container = document.getElementById('bgCreatures');
+            const count = 18;
+            for (let i = 0; i < count; i++) {
+                const el = document.createElement('span');
+                el.className = 'bg-creature';
+                el.textContent = creatures[Math.floor(Math.random() * creatures.length)];
+                el.style.left = (Math.random() * 95) + '%';
+                el.style.top = (Math.random() * 90 + 5) + '%';
+                el.style.setProperty('--dur', (3 + Math.random() * 4) + 's');
+                el.style.setProperty('--drift', (6 + Math.random() * 8) + 's');
+                el.style.setProperty('--drift-dist', (-20 + Math.random() * 40) + 'px');
+                el.style.setProperty('--rot-start', (-15 + Math.random() * 30) + 'deg');
+                el.style.animationDelay = (-Math.random() * 6) + 's';
+                el.style.fontSize = (1 + Math.random() * 0.8) + 'rem';
+                el.style.opacity = 0.06 + Math.random() * 0.1;
+                container.appendChild(el);
+            }
+        })();
     </script>
 
 </body>
