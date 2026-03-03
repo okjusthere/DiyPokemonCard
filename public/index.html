@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 DIY Pokemon Card Maker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e1a;
+            --card: rgba(255, 255, 255, 0.05);
+            --gold: #FFD700;
+            --radius: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: #fff;
+            font-family: 'Fredoka', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 20px 24px;
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--gold);
+        }
+
+        .hero {
+            text-align: center;
+            padding: 20px 24px 40px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 7vw, 3.5rem);
+            color: var(--gold);
+            text-shadow: 0 0 40px rgba(255, 215, 0, 0.4);
+            margin-bottom: 12px;
+        }
+
+        .hero p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .creator-container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 20px 80px;
+        }
+
+        .step {
+            margin-bottom: 32px;
+        }
+
+        .step-label {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-num {
+            background: rgba(255, 215, 0, 0.2);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            color: var(--gold);
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media(max-width: 500px) {
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .input-group input {
+            background: var(--card);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            color: #fff;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1rem;
+            padding: 12px 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--gold);
+        }
+
+        .input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        .input-hint {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.3);
+            margin-top: 4px;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .opt-btn {
+            background: var(--card);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius);
+            padding: 14px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .opt-btn:hover {
+            border-color: rgba(255, 215, 0, 0.4);
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .opt-btn.selected {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--gold);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+        }
+
+        .opt-emoji {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .generate-wrap {
+            text-align: center;
+            margin: 40px 0;
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, #FFD700, #ff9500);
+            border: none;
+            border-radius: 60px;
+            color: #0a0e1a;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            padding: 18px 48px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 8px 32px rgba(255, 215, 0, 0.4);
+        }
+
+        .btn-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading-overlay {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .loading-overlay.show {
+            display: block;
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 6px solid rgba(255, 215, 0, 0.15);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+        }
+
+        .loading-pokemon {
+            width: 64px;
+            animation: bounce 1s ease-in-out infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-15px);
+            }
+        }
+
+        .error-msg {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #ff6b6b;
+            font-size: 1rem;
+        }
+
+        .error-msg.show {
+            display: block;
+        }
+
+        /* ══════════════════════════════════════════
+       POKEMON TRADING CARD
+       ══════════════════════════════════════════ */
+        .card-result-wrap {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .card-result-wrap.show {
+            display: flex;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pokemon-card {
+            width: 340px;
+            background: linear-gradient(145deg, #f7f5e8, #e8e4d0);
+            border-radius: 16px;
+            border: 10px solid #e4b842;
+            box-shadow:
+                0 0 0 2px #b8941f,
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 80px rgba(255, 215, 0, 0.15);
+            overflow: hidden;
+            position: relative;
+            color: #222;
+            font-family: 'Inter', 'Fredoka', sans-serif;
+        }
+
+        /* Type-based card color overlays */
+        .pokemon-card[data-type="Fire"] {
+            background: linear-gradient(145deg, #fff3e0, #ffe0b2);
+            border-color: #ff6f00;
+        }
+
+        .pokemon-card[data-type="Water"] {
+            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+            border-color: #1565c0;
+        }
+
+        .pokemon-card[data-type="Grass"] {
+            background: linear-gradient(145deg, #e8f5e9, #c8e6c9);
+            border-color: #2e7d32;
+        }
+
+        .pokemon-card[data-type="Electric"] {
+            background: linear-gradient(145deg, #fffde7, #fff9c4);
+            border-color: #f9a825;
+        }
+
+        .pokemon-card[data-type="Psychic"] {
+            background: linear-gradient(145deg, #f3e5f5, #e1bee7);
+            border-color: #7b1fa2;
+        }
+
+        .pokemon-card[data-type="Ice"] {
+            background: linear-gradient(145deg, #e0f7fa, #b2ebf2);
+            border-color: #00838f;
+        }
+
+        .pokemon-card[data-type="Ghost"] {
+            background: linear-gradient(145deg, #ede7f6, #d1c4e9);
+            border-color: #4a148c;
+        }
+
+        .pokemon-card[data-type="Normal"] {
+            background: linear-gradient(145deg, #fafafa, #e0e0e0);
+            border-color: #757575;
+        }
+
+        .pokemon-card[data-type="Flying"] {
+            background: linear-gradient(145deg, #e8eaf6, #c5cae9);
+            border-color: #3949ab;
+        }
+
+        /* Card header */
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px 4px;
+        }
+
+        .card-stage {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #666;
+            letter-spacing: 0.05em;
+        }
+
+        .card-name {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .card-hp {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .card-hp-val {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #cc0000;
+        }
+
+        .card-hp-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #cc0000;
+        }
+
+        /* Card image frame */
+        .card-image-frame {
+            margin: 4px 14px;
+            border: 4px solid #c9a84c;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+            background: #333;
+        }
+
+        .card-image-frame img {
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            display: block;
+        }
+
+        .card-image-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 4px 10px;
+            font-size: 0.6rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-align: right;
+        }
+
+        /* Type badge */
+        .card-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin: 8px 16px 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .type-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .type-Fire {
+            background: radial-gradient(#ff6f00, #e65100);
+        }
+
+        .type-Water {
+            background: radial-gradient(#42a5f5, #1565c0);
+        }
+
+        .type-Grass {
+            background: radial-gradient(#66bb6a, #2e7d32);
+        }
+
+        .type-Electric {
+            background: radial-gradient(#ffee58, #f9a825);
+        }
+
+        .type-Psychic {
+            background: radial-gradient(#ab47bc, #6a1b9a);
+        }
+
+        .type-Ice {
+            background: radial-gradient(#4dd0e1, #00838f);
+        }
+
+        .type-Ghost {
+            background: radial-gradient(#7e57c2, #4527a0);
+        }
+
+        .type-Normal {
+            background: radial-gradient(#bdbdbd, #757575);
+        }
+
+        .type-Flying {
+            background: radial-gradient(#7986cb, #3949ab);
+        }
+
+        /* Attacks */
+        .card-attacks {
+            padding: 0 16px;
+        }
+
+        .card-attack {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .card-attack:last-child {
+            border-bottom: none;
+        }
+
+        .attack-energy {
+            display: flex;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .energy-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+
+        .attack-info {
+            flex: 1;
+        }
+
+        .attack-name {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .attack-desc {
+            font-size: 0.68rem;
+            color: #666;
+            line-height: 1.3;
+            margin-top: 2px;
+        }
+
+        .attack-damage {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            flex-shrink: 0;
+        }
+
+        /* Bottom stats */
+        .card-bottom {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 16px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 0.65rem;
+            color: #555;
+        }
+
+        .card-bottom-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .card-bottom-label {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.55rem;
+            letter-spacing: 0.05em;
+            color: #888;
+        }
+
+        .card-bottom-val {
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        /* Flavor text */
+        .card-flavor {
+            padding: 8px 16px 6px;
+            font-size: 0.62rem;
+            font-style: italic;
+            color: #777;
+            line-height: 1.4;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        /* Card footer */
+        .card-footer {
+            padding: 6px 16px 10px;
+            font-size: 0.5rem;
+            color: #aaa;
+            text-align: center;
+        }
+
+        /* ── Holographic shimmer effect ── */
+        .pokemon-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg,
+                    transparent 0%, rgba(255, 255, 255, 0.05) 25%,
+                    rgba(255, 215, 0, 0.08) 50%, rgba(255, 255, 255, 0.05) 75%, transparent 100%);
+            pointer-events: none;
+        }
+
+        /* ── Actions below card ── */
+        .card-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1.5px solid rgba(255, 215, 0, 0.25);
+            border-radius: 999px;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.95rem;
+            padding: 10px 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-action:hover {
+            background: rgba(255, 215, 0, 0.15);
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .result-email-status {
+            font-size: 0.85rem;
+            color: #4ECDC4;
+            text-align: center;
+        }
+
+        /* ── Sparkle ── */
+        .sparkle-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .sparkle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--gold);
+            border-radius: 50%;
+            animation: sparkle-fall 1.5s ease-out forwards;
+        }
+
+        @keyframes sparkle-fall {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(100px) scale(0);
+            }
+        }
+
+        /* ── Gallery ── */
+        .gallery-section {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+
+        .gallery-title {
+            font-size: 1.3rem;
+            color: var(--gold);
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .gallery-item {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 215, 0, 0.15);
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+            position: relative;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+            border-color: var(--gold);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+        }
+
+        .gallery-item-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 6px;
+            background: rgba(0, 0, 0, 0.7);
+            font-size: 0.72rem;
+            text-align: center;
+            color: var(--gold);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="hero">
+        <h1>🎨 DIY Pokemon Card Maker</h1>
+        <p>Pick a color, an animal, and a superpower — AI will create your very own Pokemon trading card! ⚡</p>
+    </div>
+
+    <div class="creator-container">
+
+        <!-- Name & Email -->
+        <div class="step">
+            <div class="step-label"><span class="step-num">✨</span> Your Info</div>
+            <div class="input-row">
+                <div class="input-group">
+                    <label>Your Name</label>
+                    <input type="text" id="kidName" placeholder="Your name" maxlength="30">
+                </div>
+                <div class="input-group">
+                    <label>Email (optional)</label>
+                    <input type="email" id="kidEmail" placeholder="parent@email.com">
+                </div>
+            </div>
+            <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
+        </div>
+
+        <!-- Color -->
+        <div class="step">
+            <div class="step-label"><span class="step-num">1</span> Pick a Color</div>
+            <div class="options">
+                <button class="opt-btn" onclick="pick('color','red',this)"><span class="opt-emoji">🔴</span>Red</button>
+                <button class="opt-btn" onclick="pick('color','blue',this)"><span
+                        class="opt-emoji">🔵</span>Blue</button>
+                <button class="opt-btn" onclick="pick('color','green',this)"><span
+                        class="opt-emoji">🟢</span>Green</button>
+                <button class="opt-btn" onclick="pick('color','yellow',this)"><span
+                        class="opt-emoji">🟡</span>Yellow</button>
+                <button class="opt-btn" onclick="pick('color','purple',this)"><span
+                        class="opt-emoji">🟣</span>Purple</button>
+                <button class="opt-btn" onclick="pick('color','pink',this)"><span
+                        class="opt-emoji">🩷</span>Pink</button>
+                <button class="opt-btn" onclick="pick('color','orange',this)"><span
+                        class="opt-emoji">🟠</span>Orange</button>
+                <button class="opt-btn" onclick="pick('color','white',this)"><span
+                        class="opt-emoji">⚪</span>White</button>
+            </div>
+        </div>
+
+        <!-- Animal -->
+        <div class="step">
+            <div class="step-label"><span class="step-num">2</span> Pick an Animal</div>
+            <div class="options">
+                <button class="opt-btn" onclick="pick('animal','cat',this)"><span
+                        class="opt-emoji">🐱</span>Cat</button>
+                <button class="opt-btn" onclick="pick('animal','dragon',this)"><span
+                        class="opt-emoji">🐉</span>Dragon</button>
+                <button class="opt-btn" onclick="pick('animal','rabbit',this)"><span
+                        class="opt-emoji">🐰</span>Rabbit</button>
+                <button class="opt-btn" onclick="pick('animal','bird',this)"><span
+                        class="opt-emoji">🐦</span>Bird</button>
+                <button class="opt-btn" onclick="pick('animal','shark',this)"><span
+                        class="opt-emoji">🦈</span>Shark</button>
+                <button class="opt-btn" onclick="pick('animal','fox',this)"><span
+                        class="opt-emoji">🦊</span>Fox</button>
+                <button class="opt-btn" onclick="pick('animal','turtle',this)"><span
+                        class="opt-emoji">🐢</span>Turtle</button>
+                <button class="opt-btn" onclick="pick('animal','wolf',this)"><span
+                        class="opt-emoji">🐺</span>Wolf</button>
+                <button class="opt-btn" onclick="pick('animal','bear',this)"><span
+                        class="opt-emoji">🐻</span>Bear</button>
+                <button class="opt-btn" onclick="pick('animal','unicorn',this)"><span
+                        class="opt-emoji">🦄</span>Unicorn</button>
+            </div>
+        </div>
+
+        <!-- Power -->
+        <div class="step">
+            <div class="step-label"><span class="step-num">3</span> Pick a Superpower</div>
+            <div class="options">
+                <button class="opt-btn" onclick="pick('power','flying',this)"><span
+                        class="opt-emoji">🦅</span>Flying</button>
+                <button class="opt-btn" onclick="pick('power','fire',this)"><span
+                        class="opt-emoji">🔥</span>Fire</button>
+                <button class="opt-btn" onclick="pick('power','ice',this)"><span class="opt-emoji">❄️</span>Ice</button>
+                <button class="opt-btn" onclick="pick('power','electric',this)"><span
+                        class="opt-emoji">⚡</span>Electric</button>
+                <button class="opt-btn" onclick="pick('power','invisible',this)"><span
+                        class="opt-emoji">👻</span>Invisible</button>
+                <button class="opt-btn" onclick="pick('power','water',this)"><span
+                        class="opt-emoji">🌊</span>Water</button>
+            </div>
+        </div>
+
+        <!-- Generate -->
+        <div class="generate-wrap">
+            <button class="btn-generate" id="btnGenerate" onclick="generatePokemon()" disabled>⚡ Create My Pokemon
+                Card!</button>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-overlay" id="loadingState">
+            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/132.png"
+                alt="Ditto" class="loading-pokemon">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Ditto is creating your Pokemon card...</div>
+            <div class="loading-text" style="font-size:0.85rem; margin-top:8px; color:rgba(255,255,255,0.4);">This takes
+                about 15-20 seconds ✨</div>
+        </div>
+
+        <!-- Error -->
+        <div class="error-msg" id="errorMsg"></div>
+
+        <!-- Result: Pokemon Trading Card -->
+        <div class="card-result-wrap" id="cardResult">
+
+            <div class="pokemon-card" id="pokemonCard">
+                <!-- Header: Name + HP -->
+                <div class="card-header">
+                    <div>
+                        <div class="card-stage">Basic Pokémon</div>
+                        <div class="card-name" id="cardName">Mysteon</div>
+                    </div>
+                    <div class="card-hp">
+                        <span class="card-hp-val" id="cardHP">60</span>
+                        <span class="card-hp-label">HP</span>
+                    </div>
+                </div>
+
+                <!-- Image -->
+                <div class="card-image-frame">
+                    <img id="cardImage" src="" alt="Pokemon">
+                    <div class="card-image-label" id="cardImageLabel">DIY Pokemon Card Maker</div>
+                </div>
+
+                <!-- Type -->
+                <div class="card-type-badge">
+                    <span class="type-icon" id="cardTypeIcon"></span>
+                    <span id="cardTypeName">Fire</span> Type · Created by <strong id="cardCreator">Trainer</strong>
+                </div>
+
+                <!-- Attacks -->
+                <div class="card-attacks">
+                    <div class="card-attack">
+                        <div class="attack-energy" id="attack1Energy"></div>
+                        <div class="attack-info">
+                            <div class="attack-name" id="attack1Name">Tackle</div>
+                            <div class="attack-desc" id="attack1Desc"></div>
+                        </div>
+                        <div class="attack-damage" id="attack1Dmg">20</div>
+                    </div>
+                    <div class="card-attack">
+                        <div class="attack-energy" id="attack2Energy"></div>
+                        <div class="attack-info">
+                            <div class="attack-name" id="attack2Name">Quick Strike</div>
+                            <div class="attack-desc" id="attack2Desc"></div>
+                        </div>
+                        <div class="attack-damage" id="attack2Dmg">40</div>
+                    </div>
+                </div>
+
+                <!-- Bottom stats -->
+                <div class="card-bottom">
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Weakness</span>
+                        <span class="card-bottom-val" id="cardWeakness">💧 ×2</span>
+                    </div>
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Resistance</span>
+                        <span class="card-bottom-val" id="cardResistance">🌿 -20</span>
+                    </div>
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Retreat</span>
+                        <span class="card-bottom-val" id="cardRetreat">⚪</span>
+                    </div>
+                </div>
+
+                <!-- Flavor text -->
+                <div class="card-flavor" id="cardFlavor">A mysterious creature born from pure imagination.</div>
+
+                <!-- Footer -->
+                <div class="card-footer">
+                    🃏 DIY Pokemon Card Collection · <span id="cardId">YBP-001</span> · ★
+                </div>
+            </div>
+
+            <!-- Email status -->
+            <div class="result-email-status" id="resultEmailStatus"></div>
+
+            <!-- Actions -->
+            <div class="card-actions">
+                <button class="btn-action" onclick="createAnother()">🔄 Create Another Card!</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Gallery -->
+    <div class="gallery-section" id="gallerySection" style="display:none;">
+        <div class="gallery-title">🏆 Today's Card Collection</div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+    </div>
+
+    <div class="sparkle-container" id="sparkles"></div>
+
+    <script>
+        const choices = { color: null, animal: null, power: null };
+        const creations = [];
+
+        const TYPE_EMOJI = {
+            Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
+            Psychic: '🔮', Ice: '❄️', Ghost: '👻', Normal: '⚪', Flying: '🦅'
+        };
+
+        function pick(type, val, btn) {
+            choices[type] = val;
+            btn.parentElement.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('btnGenerate').disabled = !(choices.color && choices.animal && choices.power);
+        }
+
+        function renderCard(data) {
+            const { imageUrl, name, cardData, kidName } = data;
+            const card = document.getElementById('pokemonCard');
+            const type = cardData.type || 'Normal';
+
+            card.setAttribute('data-type', type);
+            document.getElementById('cardName').textContent = name;
+            document.getElementById('cardHP').textContent = cardData.hp || 60;
+            document.getElementById('cardImage').src = imageUrl;
+            document.getElementById('cardTypeName').textContent = type;
+            document.getElementById('cardCreator').textContent = kidName || 'Trainer';
+
+            // Type icon
+            const typeIcon = document.getElementById('cardTypeIcon');
+            typeIcon.className = 'type-icon type-' + type;
+
+            // Attack 1
+            const a1 = cardData.attack1 || {};
+            document.getElementById('attack1Name').textContent = a1.name || 'Tackle';
+            document.getElementById('attack1Desc').textContent = a1.desc || '';
+            document.getElementById('attack1Dmg').textContent = a1.damage || 20;
+            renderEnergy('attack1Energy', type, 1);
+
+            // Attack 2
+            const a2 = cardData.attack2 || {};
+            document.getElementById('attack2Name').textContent = a2.name || 'Strike';
+            document.getElementById('attack2Desc').textContent = a2.desc || '';
+            document.getElementById('attack2Dmg').textContent = a2.damage || 40;
+            renderEnergy('attack2Energy', type, 2);
+
+            // Bottom stats
+            const we = cardData.weakness || 'Normal';
+            const re = cardData.resistance || 'Normal';
+            document.getElementById('cardWeakness').textContent = (TYPE_EMOJI[we] || '⚪') + ' ×2';
+            document.getElementById('cardResistance').textContent = (TYPE_EMOJI[re] || '⚪') + ' -20';
+            const rc = cardData.retreatCost || 1;
+            document.getElementById('cardRetreat').textContent = '⚪'.repeat(rc);
+
+            // Flavor
+            document.getElementById('cardFlavor').textContent = cardData.flavor || 'A creature born from pure imagination.';
+
+            // Card ID
+            document.getElementById('cardId').textContent = 'YBP-' + Date.now().toString().slice(-4);
+        }
+
+        function renderEnergy(containerId, type, count) {
+            const el = document.getElementById(containerId);
+            el.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const dot = document.createElement('span');
+                dot.className = 'energy-dot type-' + type;
+                el.appendChild(dot);
+            }
+            // Add one colorless
+            const c = document.createElement('span');
+            c.className = 'energy-dot type-Normal';
+            el.appendChild(c);
+        }
+
+        async function generatePokemon() {
+            const btn = document.getElementById('btnGenerate');
+            const loading = document.getElementById('loadingState');
+            const result = document.getElementById('cardResult');
+            const error = document.getElementById('errorMsg');
+            const kidName = document.getElementById('kidName').value.trim();
+            const email = document.getElementById('kidEmail').value.trim();
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Creating...';
+            result.classList.remove('show');
+            error.classList.remove('show');
+            loading.classList.add('show');
+
+            try {
+                const resp = await fetch('/api/ai/pokemon-create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...choices, kidName, email }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Something went wrong');
+
+                loading.classList.remove('show');
+                renderCard({ ...data, kidName });
+                result.classList.add('show');
+
+                // Email status
+                const emailStatus = document.getElementById('resultEmailStatus');
+                if (data.emailSent) {
+                    emailStatus.textContent = `📧 Card sent to ${email}!`;
+                } else if (email) {
+                    emailStatus.textContent = '📧 Email delivery pending...';
+                } else {
+                    emailStatus.textContent = '';
+                }
+
+                celebrate();
+                creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
+                updateGallery();
+            } catch (err) {
+                loading.classList.remove('show');
+                error.textContent = '😢 ' + err.message;
+                error.classList.add('show');
+            }
+
+            btn.textContent = '⚡ Create My Pokemon Card!';
+            btn.disabled = false;
+        }
+
+        function createAnother() {
+            document.getElementById('cardResult').classList.remove('show');
+            choices.color = null; choices.animal = null; choices.power = null;
+            document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('btnGenerate').disabled = true;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function celebrate() {
+            const container = document.getElementById('sparkles');
+            const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#A855F7', '#FF9500'];
+            for (let i = 0; i < 50; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'sparkle';
+                spark.style.left = Math.random() * 100 + 'vw';
+                spark.style.top = Math.random() * 60 + 'vh';
+                spark.style.background = colors[Math.floor(Math.random() * colors.length)];
+                spark.style.animationDelay = Math.random() * 0.5 + 's';
+                spark.style.width = spark.style.height = (4 + Math.random() * 6) + 'px';
+                container.appendChild(spark);
+                setTimeout(() => spark.remove(), 2000);
+            }
+        }
+
+        function updateGallery() {
+            if (creations.length === 0) return;
+            document.getElementById('gallerySection').style.display = 'block';
+            const grid = document.getElementById('galleryGrid');
+            grid.innerHTML = '';
+            creations.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'gallery-item';
+                const label = c.creator ? `${c.name} · ${c.creator}` : c.name;
+                item.innerHTML = `<img src="${c.url}" alt="${c.name}"><div class="gallery-item-name">${label}</div>`;
+                grid.appendChild(item);
+            });
+        }
+    </script>
+
+</body>
+
+</html>
