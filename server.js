@@ -15,6 +15,16 @@ GlobalFonts.registerFromPath(path.join(__dirname, 'fonts', 'Inter-Bold.ttf'), 'C
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy (Railway, Heroku, etc.) — needed for correct req.ip and req.protocol
+app.set('trust proxy', true);
+
+// Helper: get real client IP behind proxy
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.ip || req.connection.remoteAddress;
+}
+
 // ─── Stripe ───
 const Stripe = require('stripe');
 let stripe = null;
@@ -395,7 +405,7 @@ async function generateCardImage(imageBuffer, cardData, displayName) {
 app.post('/api/ai/pokemon-create', async (req, res) => {
   if (!aiImage || !aiChat) return res.status(503).json({ error: 'AI service not configured' });
 
-  const ip = req.ip || req.connection.remoteAddress;
+  const ip = getClientIP(req);
   if (!checkAIRate(ip)) return res.status(429).json({ error: 'Too many requests — please wait a minute! ⏳' });
 
   // Check credits
@@ -534,7 +544,7 @@ Rules: name max 12 chars, cute & easy to pronounce for 6-year-olds. HP between 4
 app.post('/api/ai/pokemon-from-photo', async (req, res) => {
   if (!aiImage || !aiVision) return res.status(503).json({ error: 'AI service not configured' });
 
-  const ip = req.ip || req.connection.remoteAddress;
+  const ip = getClientIP(req);
   if (!checkAIRate(ip)) return res.status(429).json({ error: 'Too many requests — please wait a minute! ⏳' });
 
   // Check credits
@@ -684,7 +694,7 @@ Rules: name max 12 chars, cute & easy to pronounce. HP 40-90. Attack damage 10-5
 
 // ─── Credits API ───
 app.get('/api/credits', (req, res) => {
-  const ip = req.ip || req.connection.remoteAddress;
+  const ip = getClientIP(req);
   const record = getCredits(ip);
   res.json({
     freeUsed: record.free,
@@ -701,8 +711,8 @@ app.post('/api/checkout', async (req, res) => {
   const planData = PLANS[plan];
   if (!planData) return res.status(400).json({ error: 'Invalid plan' });
 
-  const ip = req.ip || req.connection.remoteAddress;
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const ip = getClientIP(req);
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -725,8 +735,8 @@ app.post('/api/checkout', async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) {
-    console.error('Checkout error:', err.message);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('Checkout error:', err.message, '| baseUrl:', baseUrl, '| plan:', plan);
+    res.status(500).json({ error: 'Failed to create checkout session: ' + err.message });
   }
 });
 
