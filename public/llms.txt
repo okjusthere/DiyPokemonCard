@@ -2,21 +2,38 @@
 
 > AI-powered trading card creator at https://www.diypokecard.com
 
-## What it does
-- Creates custom trading cards using AI image generation
-- Upload a photo → get an anime-style portrait on a real card template
-- Or pick a color, animal, and superpower → AI generates a unique creature
-- First card is free, affordable packs available
+## What is DIY Poke Card Maker?
 
-## Features
-- AI photo-to-anime transformation (no manual editing needed)
-- 3 card styles: Supporter, Full Art, Pokemon EX
-- Instant generation in 15-20 seconds
-- Email delivery of generated cards
-- Works on mobile and desktop
+DIY Poke Card Maker is an AI-powered web application that creates custom trading cards in seconds. Unlike traditional card makers that require manual template editing, this tool uses AI (DALL-E 3 and GPT-4o) to generate original artwork and card stats automatically.
 
-## How it's different from competitors
-- AI-powered (vs manual template editors like pokecardmaker.net and pokecardgenerator.com)
-- Photo upload with anime stylization — no design skills needed
-- Original AI-generated artwork, not copyrighted materials
-- Affordable micro-transactions (first card free, then $0.99+ packs)
+## Two ways to create cards
+
+### Create from Photo
+Upload any photo and AI transforms it into an anime-style portrait, then places it on a professional Trainer card template. Choose from Supporter, Full Art, or EX card styles. No design skills needed.
+
+### Design Your Own
+Pick a color, animal, and superpower. AI generates a completely unique creature with original artwork and full card stats (HP, attacks, weakness, resistance) in about 15-20 seconds.
+
+## Frequently Asked Questions
+
+### Is it free?
+Yes. Your first card is completely free with no signup required. After that, affordable card packs are available starting from $0.99 for a 1-card pack, with volume discounts up to 10 cards.
+
+### How is this different from pokecardmaker.net or pokecardgenerator.com?
+Those sites are manual template editors where you upload your own image and fill in stats by hand. DIY Poke Card Maker uses AI to generate original anime-style artwork and auto-generate balanced card stats. You just pick options or upload a photo and AI does the rest.
+
+### What technology does it use?
+The app uses Azure OpenAI's DALL-E 3 for image generation and GPT-4o for card text creation. Card templates are rendered server-side using Node.js Canvas for professional quality output.
+
+### Can I use the cards I create?
+Yes. All AI-generated artwork is original and not copied from any existing characters. You own the cards you create and can download, share, or print them.
+
+### Does it store my photos?
+No. Photo uploads are processed transiently to generate your card and are not stored after the request completes.
+
+## Technical Details
+- Built with Node.js, Express, and SQLite
+- AI: Azure OpenAI (DALL-E 3 + GPT-4o)
+- Payments: Stripe (credit card + Alipay)
+- Hosting: Railway
+- Domain: www.diypokecard.com
