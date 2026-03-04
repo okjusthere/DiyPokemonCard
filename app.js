@@ -284,6 +284,19 @@ function createPublicError(publicMessage, statusCode = 400, code) {
   return error;
 }
 
+function parseTrustProxySetting(value) {
+  if (value === undefined || value === null || value === '') return true;
+  if (typeof value === 'boolean' || typeof value === 'number') return value;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+
+  const numeric = Number.parseInt(normalized, 10);
+  if (Number.isFinite(numeric) && numeric >= 0) return numeric;
+  return value;
+}
+
 function setupDatabase(db) {
   try {
     db.pragma('journal_mode = WAL');
@@ -1731,7 +1744,7 @@ function createApp(options = {}) {
   const env = options.env || process.env;
   const app = express();
 
-  app.set('trust proxy', env.TRUST_PROXY || true);
+  app.set('trust proxy', parseTrustProxySetting(env.TRUST_PROXY));
   app.use(applySecurityHeaders);
 
   // Redirect bare domain → www (SEO + Stripe consistency)
@@ -2221,7 +2234,9 @@ Return:
         throw createPublicError('Enter an email address first.', 400, 'email_required');
       }
 
-      const cardData = normalizeCardData(safeJsonParse(stored.card_data_json, {}));
+      const storedCardPayload = safeJsonParse(stored.card_data_json, {});
+      const cardData = stored.mode === 'photo' ? null : normalizeCardData(storedCardPayload);
+      const trainerData = stored.mode === 'photo' ? normalizeTrainerCardData(storedCardPayload) : null;
       const displayName = sanitizeText(
         req.body.displayName || stored.display_name || account.displayName,
         'Pokemon Trainer',
@@ -2233,6 +2248,7 @@ Return:
         mode: stored.mode,
         imageUrl: stored.image_url,
         cardData,
+        trainerData,
         displayName,
         email: account.email,
         fromPhoto: stored.mode === 'photo',

@@ -1706,6 +1706,7 @@
             Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
             Psychic: '🔮', Ice: '❄️', Ghost: '👻', Normal: '⚪', Flying: '🦅'
         };
+        const SUPPORTED_TYPES = new Set(Object.keys(TYPE_EMOJI));
 
         const uploadArea = document.getElementById('photoUploadArea');
         const photoInput = document.getElementById('photoInput');
@@ -1731,6 +1732,28 @@
             msg.textContent = '';
             msg.style.background = '';
             msg.style.border = '';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function normalizeType(type) {
+            return SUPPORTED_TYPES.has(type) ? type : 'Normal';
+        }
+
+        function normalizeImageUrl(url) {
+            const value = String(url ?? '').trim();
+            if (!value) return '';
+            if (value.startsWith('/')) return value;
+            if (/^https?:\/\//i.test(value)) return value;
+            if (/^data:image\//i.test(value)) return value;
+            return '';
         }
 
         function syncEmailInputs(value, sourceId = '') {
@@ -2261,20 +2284,40 @@
                 card.style.background = 'none';
                 card.style.border = 'none';
                 card.style.boxShadow = 'none';
-                card.innerHTML = `
-                    <div class="trainer-card-wrap">
-                        <img src="${imageUrl}" alt="${name || 'Pokemon Card'}" style="width:100%; border-radius:16px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
-                    </div>
-                    <div style="text-align:center; margin-top:12px; color:var(--gold); font-size:1.2rem; font-weight:700;">
-                        ${trainerData.title || 'Trainer Card'}
-                    </div>
-                    <div style="text-align:center; margin-top:6px; color:rgba(255,255,255,0.5); font-size:0.85rem; font-style:italic;">
-                        ${trainerData.effect || ''}
-                    </div>
-                `;
+                card.textContent = '';
+
+                const imageWrap = document.createElement('div');
+                imageWrap.className = 'trainer-card-wrap';
+                const image = document.createElement('img');
+                image.src = normalizeImageUrl(imageUrl);
+                image.alt = name || 'Pokemon Card';
+                image.style.width = '100%';
+                image.style.borderRadius = '16px';
+                image.style.boxShadow = '0 20px 60px rgba(0,0,0,0.5)';
+                imageWrap.appendChild(image);
+
+                const title = document.createElement('div');
+                title.style.textAlign = 'center';
+                title.style.marginTop = '12px';
+                title.style.color = 'var(--gold)';
+                title.style.fontSize = '1.2rem';
+                title.style.fontWeight = '700';
+                title.textContent = trainerData.title || 'Trainer Card';
+
+                const effect = document.createElement('div');
+                effect.style.textAlign = 'center';
+                effect.style.marginTop = '6px';
+                effect.style.color = 'rgba(255,255,255,0.5)';
+                effect.style.fontSize = '0.85rem';
+                effect.style.fontStyle = 'italic';
+                effect.textContent = trainerData.effect || '';
+
+                card.appendChild(imageWrap);
+                card.appendChild(title);
+                card.appendChild(effect);
             } else {
                 // Standard Pokemon card rendering (Design mode)
-                const type = cardData.type || 'Normal';
+                const type = normalizeType(cardData.type || 'Normal');
                 card.style.background = '';
                 card.style.border = '';
                 card.style.boxShadow = '';
@@ -2285,47 +2328,59 @@
         }
 
         function generateStandardCardHTML(cardData, imageUrl, kidName) {
-            const type = cardData.type || 'Normal';
+            const type = normalizeType(cardData.type || 'Normal');
             const a1 = cardData.attack1 || {};
             const a2 = cardData.attack2 || {};
-            const we = cardData.weakness || 'Normal';
-            const re = cardData.resistance || 'Normal';
+            const we = normalizeType(cardData.weakness || 'Normal');
+            const re = normalizeType(cardData.resistance || 'Normal');
+            const safeName = escapeHtml(cardData.name || 'Mysteon');
+            const safeAttack1Name = escapeHtml(a1.name || 'Tackle');
+            const safeAttack1Desc = escapeHtml(a1.desc || '');
+            const safeAttack2Name = escapeHtml(a2.name || 'Strike');
+            const safeAttack2Desc = escapeHtml(a2.desc || '');
+            const safeFlavor = escapeHtml(cardData.flavor || 'A creature born from pure imagination.');
+            const safeCreator = escapeHtml(kidName || 'Trainer');
+            const safeImageUrl = escapeHtml(normalizeImageUrl(imageUrl));
+            const hp = Number.parseInt(cardData.hp, 10) || 60;
+            const attack1Damage = Number.parseInt(a1.damage, 10) || 20;
+            const attack2Damage = Number.parseInt(a2.damage, 10) || 40;
+            const retreatCost = Math.max(0, Math.min(4, Number.parseInt(cardData.retreatCost, 10) || 1));
 
             return `
                 <div class="card-header">
                     <div>
                         <div class="card-stage">Basic Pokémon</div>
-                        <div class="card-name">${cardData.name || 'Mysteon'}</div>
+                        <div class="card-name">${safeName}</div>
                     </div>
                     <div class="card-hp">
-                        <span class="card-hp-val">${cardData.hp || 60}</span>
+                        <span class="card-hp-val">${hp}</span>
                         <span class="card-hp-label">HP</span>
                     </div>
                 </div>
                 <div class="card-image-frame">
-                    <img src="${imageUrl}" alt="Pokemon">
+                    <img src="${safeImageUrl}" alt="Pokemon">
                     <div class="card-image-label">DIY Poke Card Maker</div>
                 </div>
                 <div class="card-type-badge">
                     <span class="type-icon type-${type}"></span>
-                    <span>${type}</span> Type · Created by <strong>${kidName || 'Trainer'}</strong>
+                    <span>${type}</span> Type · Created by <strong>${safeCreator}</strong>
                 </div>
                 <div class="card-attacks">
                     <div class="card-attack">
                         <div class="attack-energy">${renderEnergyHTML(type, 1)}</div>
                         <div class="attack-info">
-                            <div class="attack-name">${a1.name || 'Tackle'}</div>
-                            <div class="attack-desc">${a1.desc || ''}</div>
+                            <div class="attack-name">${safeAttack1Name}</div>
+                            <div class="attack-desc">${safeAttack1Desc}</div>
                         </div>
-                        <div class="attack-damage">${a1.damage || 20}</div>
+                        <div class="attack-damage">${attack1Damage}</div>
                     </div>
                     <div class="card-attack">
                         <div class="attack-energy">${renderEnergyHTML(type, 2)}</div>
                         <div class="attack-info">
-                            <div class="attack-name">${a2.name || 'Strike'}</div>
-                            <div class="attack-desc">${a2.desc || ''}</div>
+                            <div class="attack-name">${safeAttack2Name}</div>
+                            <div class="attack-desc">${safeAttack2Desc}</div>
                         </div>
-                        <div class="attack-damage">${a2.damage || 40}</div>
+                        <div class="attack-damage">${attack2Damage}</div>
                     </div>
                 </div>
                 <div class="card-bottom">
@@ -2339,10 +2394,10 @@
                     </div>
                     <div class="card-bottom-item">
                         <span class="card-bottom-label">Retreat</span>
-                        <span class="card-bottom-val">${'⚪'.repeat(cardData.retreatCost || 1)}</span>
+                        <span class="card-bottom-val">${'⚪'.repeat(retreatCost)}</span>
                     </div>
                 </div>
-                <div class="card-flavor">${cardData.flavor || 'A creature born from pure imagination.'}</div>
+                <div class="card-flavor">${safeFlavor}</div>
                 <div class="card-footer">
                     🃏 DIY Poke Card Collection · YBP-${Date.now().toString().slice(-4)} · ★
                 </div>
