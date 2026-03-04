@@ -1084,6 +1084,118 @@
             border-color: rgba(255, 255, 255, 0.4);
             color: rgba(255, 255, 255, 0.8);
         }
+
+        .account-panel {
+            margin: 0 0 20px;
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            text-align: left;
+        }
+
+        .account-panel label {
+            display: block;
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .account-email-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            color: #fff;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.95rem;
+            padding: 12px 14px;
+            outline: none;
+        }
+
+        .account-email-input:focus {
+            border-color: var(--gold);
+        }
+
+        .account-note {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.45);
+            line-height: 1.5;
+        }
+
+        .restore-link {
+            margin-top: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+            background: transparent;
+            color: var(--gold);
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.82rem;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .restore-link[hidden] {
+            display: none;
+        }
+
+        .restore-status {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.62);
+            min-height: 1.1em;
+        }
+
+        .consent-group {
+            margin-top: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .consent-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.68);
+        }
+
+        .consent-check input {
+            margin-top: 3px;
+            accent-color: var(--gold);
+            flex-shrink: 0;
+        }
+
+        .consent-check a {
+            color: var(--gold);
+        }
+
+        .site-footer {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0 20px 48px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .site-footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .site-footer a {
+            color: rgba(255, 215, 0, 0.82);
+            text-decoration: none;
+        }
     </style>
 </head>
 
@@ -1101,7 +1213,20 @@
     <div class="paywall-overlay" id="paywallOverlay">
         <div class="paywall-modal">
             <div class="paywall-title">⚡ Get More Pokemon Cards!</div>
-            <div class="paywall-subtitle">You've used your free card. Choose a plan to keep creating!</div>
+            <div class="paywall-subtitle">Enter the email that should own your paid credits, then choose a plan.</div>
+            <div class="account-panel">
+                <label for="paywallEmail">Account email</label>
+                <input class="account-email-input" type="email" id="paywallEmail" placeholder="parent@email.com">
+                <div class="account-note">Paid credits are attached to this email so you can restore them later on a new device.</div>
+                <div class="consent-group">
+                    <label class="consent-check">
+                        <input type="checkbox" id="paywallLegalConsent">
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                    </label>
+                </div>
+                <button class="restore-link" id="restoreLinkBtn" onclick="sendRestoreLink()" hidden>✉️ Email me a sign-in link</button>
+                <div class="restore-status" id="restoreStatus"></div>
+            </div>
             <div class="pricing-grid">
                 <div class="pricing-card" onclick="checkout('single')">
                     <div class="pricing-emoji">🃏</div>
@@ -1124,7 +1249,7 @@
                     <div class="pricing-per">$0.50 per card</div>
                 </div>
             </div>
-            <div class="paywall-subtitle">💳 Credit Card & Alipay supported</div>
+            <div class="paywall-subtitle">💳 Card checkout is supported. Credits appear automatically after payment confirmation.</div>
             <button class="paywall-close" onclick="hidePaywall()">Maybe Later</button>
         </div>
     </div>
@@ -1155,11 +1280,17 @@
                         <input type="text" id="kidName" placeholder="Your name" maxlength="30">
                     </div>
                     <div class="input-group">
-                        <label>Email (optional)</label>
+                        <label>Email (recommended)</label>
                         <input type="email" id="kidEmail" placeholder="parent@email.com">
                     </div>
                 </div>
-                <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
+                <div class="input-hint">📧 We'll email your card if you want, and this email is also used to restore paid credits later.</div>
+                <div class="consent-group">
+                    <label class="consent-check">
+                        <input type="checkbox" id="designLegalConsent">
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                    </label>
+                </div>
             </div>
 
             <!-- Color -->
@@ -1251,11 +1382,21 @@
                         <input type="text" id="photoKidName" placeholder="Your name" maxlength="30">
                     </div>
                     <div class="input-group">
-                        <label>Email (optional)</label>
+                        <label>Email (recommended)</label>
                         <input type="email" id="photoKidEmail" placeholder="parent@email.com">
                     </div>
                 </div>
-                <div class="input-hint">📧 We'll email your Pokemon card so you can keep it forever!</div>
+                <div class="input-hint">📧 We'll email your card if you want, and this email is also used to restore paid credits later.</div>
+                <div class="consent-group">
+                    <label class="consent-check">
+                        <input type="checkbox" id="photoLegalConsent">
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                    </label>
+                    <label class="consent-check">
+                        <input type="checkbox" id="photoParentConsent">
+                        <span>I confirm I am the parent/guardian, or I have parent/guardian permission to upload this photo for AI processing.</span>
+                    </label>
+                </div>
             </div>
 
             <!-- Photo Upload -->
@@ -1389,33 +1530,135 @@
 
     <div class="sparkle-container" id="sparkles"></div>
 
+    <footer class="site-footer">
+        <div class="site-footer-links">
+            <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a>
+            <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy</a>
+        </div>
+        <div>Photo uploads are processed transiently to generate a card and are not stored by this app after the request completes.</div>
+    </footer>
+
     <script>
         const choices = { color: null, animal: null, power: null };
         const creations = [];
         let photoBase64 = null;
-        let creditState = { freeUsed: false, credits: 0 };
+        let restoreAvailable = false;
+        let creditState = {
+            id: '',
+            email: '',
+            displayName: '',
+            promoCreditsRemaining: 1,
+            paidCredits: 0,
+            totalCredits: 1,
+            hasCredits: true,
+            consents: {
+                termsAccepted: false,
+                privacyAccepted: false,
+                photoParentConsent: false,
+            },
+        };
 
-        // ─── Credit / Payment System ───
-        async function fetchCredits() {
-            try {
-                const resp = await fetch('/api/credits');
-                creditState = await resp.json();
-            } catch { /* offline fallback */ }
+        const TYPE_EMOJI = {
+            Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
+            Psychic: '🔮', Ice: '❄️', Ghost: '👻', Normal: '⚪', Flying: '🦅'
+        };
+
+        const uploadArea = document.getElementById('photoUploadArea');
+        const photoInput = document.getElementById('photoInput');
+        const previewContainer = document.getElementById('photoPreviewContainer');
+        const previewImg = document.getElementById('photoPreview');
+
+        function currentMode() {
+            return document.getElementById('modePhoto').classList.contains('active') ? 'photo' : 'design';
+        }
+
+        function showMessage(text, tone = 'error') {
+            const msg = document.getElementById('errorMsg');
+            msg.textContent = text;
+            msg.style.background = tone === 'success' ? 'rgba(78, 205, 196, 0.18)' : 'rgba(255, 107, 107, 0.12)';
+            msg.style.border = tone === 'success' ? '1px solid rgba(78, 205, 196, 0.35)' : '1px solid rgba(255, 107, 107, 0.28)';
+            msg.classList.add('show');
+        }
+
+        function hideMessage() {
+            const msg = document.getElementById('errorMsg');
+            msg.classList.remove('show');
+            msg.textContent = '';
+            msg.style.background = '';
+            msg.style.border = '';
+        }
+
+        function syncEmailInputs(value, sourceId = '') {
+            ['kidEmail', 'photoKidEmail', 'paywallEmail'].forEach((id) => {
+                const input = document.getElementById(id);
+                if (!input) return;
+                if (id === sourceId) return;
+                if (!input.value || value) input.value = value;
+            });
+        }
+
+        function applyAccountState(account = {}) {
+            creditState = {
+                ...creditState,
+                ...account,
+                consents: {
+                    ...creditState.consents,
+                    ...(account.consents || {}),
+                },
+            };
+
+            if (creditState.email) {
+                syncEmailInputs(creditState.email);
+            }
+            if (creditState.displayName) {
+                if (!document.getElementById('kidName').value) document.getElementById('kidName').value = creditState.displayName;
+                if (!document.getElementById('photoKidName').value) document.getElementById('photoKidName').value = creditState.displayName;
+            }
+
+            if (creditState.consents.termsAccepted && creditState.consents.privacyAccepted) {
+                document.getElementById('designLegalConsent').checked = true;
+                document.getElementById('photoLegalConsent').checked = true;
+                document.getElementById('paywallLegalConsent').checked = true;
+            }
+            if (creditState.consents.photoParentConsent) {
+                document.getElementById('photoParentConsent').checked = true;
+            }
+
             updateCreditBadge();
+            updateGenerateButtons();
+            updateRestoreUi();
         }
 
         function updateCreditBadge() {
             const el = document.getElementById('creditCount');
-            if (!creditState.freeUsed) {
-                el.textContent = '1 free card';
-            } else if (creditState.credits > 0) {
-                el.textContent = `${creditState.credits} card${creditState.credits > 1 ? 's' : ''} left`;
-            } else {
+            if ((creditState.totalCredits || 0) <= 0) {
                 el.textContent = 'Get more cards';
+                return;
+            }
+            if ((creditState.promoCreditsRemaining || 0) > 0 && (creditState.paidCredits || 0) === 0) {
+                el.textContent = '1 free card';
+                return;
+            }
+            el.textContent = `${creditState.totalCredits} card${creditState.totalCredits > 1 ? 's' : ''} left`;
+        }
+
+        function updateRestoreUi() {
+            document.getElementById('restoreLinkBtn').hidden = !restoreAvailable;
+        }
+
+        async function fetchSession() {
+            try {
+                const resp = await fetch('/api/session');
+                const data = await resp.json();
+                restoreAvailable = !!data.restoreAvailable;
+                applyAccountState(data.account);
+            } catch {
+                updateCreditBadge();
             }
         }
 
         function showPaywall() {
+            document.getElementById('paywallEmail').value = document.getElementById('paywallEmail').value || creditState.email || '';
             document.getElementById('paywallOverlay').classList.add('show');
         }
 
@@ -1423,64 +1666,141 @@
             document.getElementById('paywallOverlay').classList.remove('show');
         }
 
+        function getModeProfile(mode = currentMode()) {
+            if (mode === 'photo') {
+                return {
+                    displayName: document.getElementById('photoKidName').value.trim(),
+                    email: document.getElementById('photoKidEmail').value.trim() || document.getElementById('paywallEmail').value.trim(),
+                    acceptTerms: document.getElementById('photoLegalConsent').checked,
+                    acceptPrivacy: document.getElementById('photoLegalConsent').checked,
+                    photoParentConsent: document.getElementById('photoParentConsent').checked,
+                };
+            }
+
+            return {
+                displayName: document.getElementById('kidName').value.trim(),
+                email: document.getElementById('kidEmail').value.trim() || document.getElementById('paywallEmail').value.trim(),
+                acceptTerms: document.getElementById('designLegalConsent').checked,
+                acceptPrivacy: document.getElementById('designLegalConsent').checked,
+                photoParentConsent: false,
+            };
+        }
+
+        async function persistAccountProfile(profile) {
+            const resp = await fetch('/api/account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(profile),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Unable to update your account.');
+            applyAccountState(data);
+            return data;
+        }
+
         async function checkout(plan) {
             try {
+                const modeProfile = getModeProfile();
+                const legalAccepted = modeProfile.acceptTerms || document.getElementById('paywallLegalConsent').checked;
+                const profile = {
+                    ...modeProfile,
+                    email: modeProfile.email,
+                    acceptTerms: legalAccepted,
+                    acceptPrivacy: legalAccepted,
+                };
+
+                if (!profile.email) {
+                    throw new Error('Enter your email first so paid credits can be restored later.');
+                }
+
+                await persistAccountProfile(profile);
+
                 const resp = await fetch('/api/checkout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan }),
+                    body: JSON.stringify({
+                        plan,
+                        email: profile.email,
+                        displayName: profile.displayName,
+                        acceptTerms: legalAccepted,
+                        acceptPrivacy: legalAccepted,
+                    }),
                 });
                 const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Failed to start checkout.');
                 if (data.url) window.location.href = data.url;
-                else alert(data.error || 'Failed to start checkout');
             } catch (err) {
-                alert('Checkout error: ' + err.message);
+                showMessage(`😢 ${err.message}`);
             }
         }
 
-        // Handle payment success redirect
-        (function checkPaymentReturn() {
+        async function sendRestoreLink() {
+            const status = document.getElementById('restoreStatus');
+            status.textContent = '';
+
+            try {
+                const email = document.getElementById('paywallEmail').value.trim();
+                if (!email) throw new Error('Enter the account email first.');
+
+                const resp = await fetch('/api/account/restore/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Unable to send the sign-in link.');
+                status.textContent = data.message || 'If that email exists, a sign-in link is on the way.';
+            } catch (err) {
+                status.textContent = err.message;
+            }
+        }
+
+        (function checkReturnParams() {
             const params = new URLSearchParams(window.location.search);
+            if (!params.toString()) return;
+
+            const clean = () => window.history.replaceState({}, '', window.location.pathname);
+
             if (params.get('payment') === 'success') {
-                const credits = params.get('credits');
-                // Clean URL
-                window.history.replaceState({}, '', '/');
-                // Show success message
-                setTimeout(() => {
-                    fetchCredits();
-                    const msg = document.getElementById('errorMsg');
-                    msg.textContent = `🎉 Payment successful! ${credits} card${credits > 1 ? 's' : ''} added to your account!`;
-                    msg.style.background = 'rgba(78, 205, 196, 0.2)';
-                    msg.style.borderColor = 'rgba(78, 205, 196, 0.4)';
-                    msg.classList.add('show');
-                    setTimeout(() => msg.classList.remove('show'), 5000);
-                }, 500);
-            } else if (params.get('payment') === 'cancelled') {
-                window.history.replaceState({}, '', '/');
+                clean();
+                setTimeout(async () => {
+                    await fetchSession();
+                    showMessage('🎉 Payment confirmed. Your credits are ready to use.', 'success');
+                    setTimeout(() => hideMessage(), 5000);
+                }, 400);
+                return;
+            }
+
+            if (params.get('payment') === 'cancelled') {
+                clean();
+                showMessage('Payment cancelled. Your credits were not charged.');
+                setTimeout(() => hideMessage(), 4000);
+                return;
+            }
+
+            if (params.get('restored') === '1') {
+                clean();
+                setTimeout(async () => {
+                    await fetchSession();
+                    showMessage('✅ Account restored. Your credits are available on this device now.', 'success');
+                    setTimeout(() => hideMessage(), 5000);
+                }, 200);
             }
         })();
 
-        // Handle 402 no-credits error from API
         function handleApiResponse(resp, data) {
+            if (data && data.account) {
+                applyAccountState(data.account);
+            }
             if (resp.status === 402 && data.error === 'no_credits') {
-                creditState.freeUsed = true;
-                creditState.credits = 0;
+                creditState.totalCredits = 0;
                 updateCreditBadge();
                 showPaywall();
-                return false; // Signal: don't proceed
+                return false;
             }
-            return true; // OK to proceed
+            return true;
         }
 
-        // Fetch credits on load
-        fetchCredits();
-
-        const TYPE_EMOJI = {
-            Fire: '🔥', Water: '💧', Grass: '🌿', Electric: '⚡',
-            Psychic: '🔮', Ice: '❄️', Ghost: '👻', Normal: '⚪', Flying: '🦅'
-        };
-
-        // ─── Mode Switching ───
         function switchMode(mode) {
             document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
@@ -1491,16 +1811,25 @@
                 document.getElementById('tabPhoto').classList.add('active');
                 document.getElementById('modePhoto').classList.add('active');
             }
-            // Hide any previous results
             document.getElementById('cardResult').classList.remove('show');
-            document.getElementById('errorMsg').classList.remove('show');
+            hideMessage();
+            updateGenerateButtons();
         }
 
-        // ─── Photo Upload ───
-        const uploadArea = document.getElementById('photoUploadArea');
-        const photoInput = document.getElementById('photoInput');
-        const previewContainer = document.getElementById('photoPreviewContainer');
-        const previewImg = document.getElementById('photoPreview');
+        function updateGenerateButtons() {
+            document.getElementById('btnGenerate').disabled = !(
+                choices.color &&
+                choices.animal &&
+                choices.power &&
+                document.getElementById('designLegalConsent').checked
+            );
+
+            document.getElementById('btnGeneratePhoto').disabled = !(
+                photoBase64 &&
+                document.getElementById('photoLegalConsent').checked &&
+                document.getElementById('photoParentConsent').checked
+            );
+        }
 
         uploadArea.addEventListener('click', () => photoInput.click());
         uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
@@ -1514,29 +1843,49 @@
             if (e.target.files.length) handlePhotoFile(e.target.files[0]);
         });
 
+        ['kidEmail', 'photoKidEmail', 'paywallEmail'].forEach((id) => {
+            document.getElementById(id).addEventListener('input', (event) => syncEmailInputs(event.target.value, id));
+        });
+        ['designLegalConsent', 'photoLegalConsent', 'photoParentConsent', 'paywallLegalConsent'].forEach((id) => {
+            document.getElementById(id).addEventListener('change', updateGenerateButtons);
+        });
+
         function handlePhotoFile(file) {
-            if (!file.type.startsWith('image/')) return alert('Please upload an image file');
-            if (file.size > 5 * 1024 * 1024) return alert('Image too large — max 5MB');
+            if (!file.type.startsWith('image/')) {
+                showMessage('😢 Please upload an image file.');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                showMessage('😢 Image too large - max 5MB.');
+                return;
+            }
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                // Resize to max 512px for faster upload
                 const img = new Image();
                 img.onload = () => {
                     const maxSize = 512;
-                    let w = img.width, h = img.height;
+                    let w = img.width;
+                    let h = img.height;
                     if (w > maxSize || h > maxSize) {
-                        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
-                        else { w = Math.round(w * maxSize / h); h = maxSize; }
+                        if (w > h) {
+                            h = Math.round(h * maxSize / w);
+                            w = maxSize;
+                        } else {
+                            w = Math.round(w * maxSize / h);
+                            h = maxSize;
+                        }
                     }
                     const canvas = document.createElement('canvas');
-                    canvas.width = w; canvas.height = h;
+                    canvas.width = w;
+                    canvas.height = h;
                     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
                     photoBase64 = canvas.toDataURL('image/jpeg', 0.8);
                     previewImg.src = photoBase64;
                     uploadArea.style.display = 'none';
                     previewContainer.classList.add('show');
-                    document.getElementById('btnGeneratePhoto').disabled = false;
+                    hideMessage();
+                    updateGenerateButtons();
                 };
                 img.src = e.target.result;
             };
@@ -1547,79 +1896,105 @@
             photoBase64 = null;
             previewContainer.classList.remove('show');
             uploadArea.style.display = '';
-            document.getElementById('btnGeneratePhoto').disabled = true;
             photoInput.value = '';
+            updateGenerateButtons();
         }
 
-        // ─── Generate from photo ───
+        function updateEmailStatus(status, email) {
+            const emailStatus = document.getElementById('resultEmailStatus');
+            if (!email) {
+                emailStatus.textContent = '';
+                return;
+            }
+            if (status === 'sent') {
+                emailStatus.textContent = `📧 Card sent to ${email}!`;
+            } else if (status === 'failed') {
+                emailStatus.textContent = '📧 Card created, but email delivery failed this time.';
+            } else if (status === 'not_configured') {
+                emailStatus.textContent = '📧 Card created, but email delivery is not configured yet.';
+            } else {
+                emailStatus.textContent = '';
+            }
+        }
+
+        function renderAppearanceBadge(text) {
+            let badge = document.getElementById('appearanceBadge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'appearanceBadge';
+                badge.className = 'appearance-badge';
+                document.getElementById('cardResult').querySelector('.card-actions').before(badge);
+            }
+            badge.textContent = '';
+            const strong = document.createElement('strong');
+            strong.textContent = '🔍 AI Analysis: ';
+            badge.appendChild(strong);
+            badge.appendChild(document.createTextNode(text));
+            badge.style.display = 'block';
+        }
+
         async function generateFromPhoto() {
             if (!photoBase64) return;
 
             const btn = document.getElementById('btnGeneratePhoto');
             const loading = document.getElementById('loadingState');
             const result = document.getElementById('cardResult');
-            const error = document.getElementById('errorMsg');
-            const kidName = document.getElementById('photoKidName').value.trim();
-            const email = document.getElementById('photoKidEmail').value.trim();
+            const profile = getModeProfile('photo');
 
             btn.disabled = true;
             btn.textContent = '⏳ Analyzing photo...';
             result.classList.remove('show');
-            error.classList.remove('show');
+            hideMessage();
             loading.classList.add('show');
 
             try {
                 const resp = await fetch('/api/ai/pokemon-from-photo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ photo: photoBase64, kidName, email }),
+                    body: JSON.stringify({
+                        photo: photoBase64,
+                        kidName: profile.displayName,
+                        email: profile.email,
+                        acceptTerms: profile.acceptTerms,
+                        acceptPrivacy: profile.acceptPrivacy,
+                        photoParentConsent: profile.photoParentConsent,
+                    }),
                 });
                 const data = await resp.json();
-                if (!handleApiResponse(resp, data)) { loading.classList.remove('show'); btn.textContent = '⚡ Create My Pokemon Card!'; btn.disabled = false; return; }
-                if (!resp.ok) throw new Error(data.error || 'Something went wrong');
+                if (!handleApiResponse(resp, data)) {
+                    loading.classList.remove('show');
+                    btn.textContent = '⚡ Create My Pokemon Card!';
+                    updateGenerateButtons();
+                    return;
+                }
+                if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
 
                 loading.classList.remove('show');
-                renderCard({ ...data, kidName });
+                renderCard({ ...data, kidName: profile.displayName });
                 result.classList.add('show');
 
-                // Show appearance analysis
                 if (data.appearance) {
-                    let badge = document.getElementById('appearanceBadge');
-                    if (!badge) {
-                        badge = document.createElement('div');
-                        badge.id = 'appearanceBadge';
-                        badge.className = 'appearance-badge';
-                        document.getElementById('cardResult').querySelector('.card-actions').before(badge);
-                    }
-                    badge.innerHTML = `<strong>🔍 AI Analysis:</strong> ${data.appearance}`;
-                    badge.style.display = 'block';
+                    renderAppearanceBadge(data.appearance);
                 }
 
-                // Email status
-                const emailStatus = document.getElementById('resultEmailStatus');
-                if (data.emailSent) emailStatus.textContent = `📧 Card sent to ${email}!`;
-                else if (email) emailStatus.textContent = '📧 Email delivery pending...';
-                else emailStatus.textContent = '';
-
+                updateEmailStatus(data.emailStatus, profile.email);
                 celebrate();
-                creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
+                creations.push({ name: data.name, url: data.imageUrl, creator: profile.displayName });
                 updateGallery();
-                if (data.creditsRemaining !== undefined) { creditState.freeUsed = true; creditState.credits = data.creditsRemaining; updateCreditBadge(); }
             } catch (err) {
                 loading.classList.remove('show');
-                error.textContent = '😢 ' + err.message;
-                error.classList.add('show');
+                showMessage(`😢 ${err.message}`);
             }
 
             btn.textContent = '⚡ Create My Pokemon Card!';
-            btn.disabled = false;
+            updateGenerateButtons();
         }
 
         function pick(type, val, btn) {
             choices[type] = val;
             btn.parentElement.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
-            document.getElementById('btnGenerate').disabled = !(choices.color && choices.animal && choices.power);
+            updateGenerateButtons();
         }
 
         function renderCard(data) {
@@ -1634,112 +2009,102 @@
             document.getElementById('cardTypeName').textContent = type;
             document.getElementById('cardCreator').textContent = kidName || 'Trainer';
 
-            // Type icon
             const typeIcon = document.getElementById('cardTypeIcon');
-            typeIcon.className = 'type-icon type-' + type;
+            typeIcon.className = `type-icon type-${type}`;
 
-            // Attack 1
             const a1 = cardData.attack1 || {};
             document.getElementById('attack1Name').textContent = a1.name || 'Tackle';
             document.getElementById('attack1Desc').textContent = a1.desc || '';
             document.getElementById('attack1Dmg').textContent = a1.damage || 20;
             renderEnergy('attack1Energy', type, 1);
 
-            // Attack 2
             const a2 = cardData.attack2 || {};
             document.getElementById('attack2Name').textContent = a2.name || 'Strike';
             document.getElementById('attack2Desc').textContent = a2.desc || '';
             document.getElementById('attack2Dmg').textContent = a2.damage || 40;
             renderEnergy('attack2Energy', type, 2);
 
-            // Bottom stats
             const we = cardData.weakness || 'Normal';
             const re = cardData.resistance || 'Normal';
-            document.getElementById('cardWeakness').textContent = (TYPE_EMOJI[we] || '⚪') + ' ×2';
-            document.getElementById('cardResistance').textContent = (TYPE_EMOJI[re] || '⚪') + ' -20';
-            const rc = cardData.retreatCost || 1;
-            document.getElementById('cardRetreat').textContent = '⚪'.repeat(rc);
-
-            // Flavor
+            document.getElementById('cardWeakness').textContent = `${TYPE_EMOJI[we] || '⚪'} ×2`;
+            document.getElementById('cardResistance').textContent = `${TYPE_EMOJI[re] || '⚪'} -20`;
+            document.getElementById('cardRetreat').textContent = '⚪'.repeat(cardData.retreatCost || 1);
             document.getElementById('cardFlavor').textContent = cardData.flavor || 'A creature born from pure imagination.';
-
-            // Card ID
-            document.getElementById('cardId').textContent = 'YBP-' + Date.now().toString().slice(-4);
+            document.getElementById('cardId').textContent = `YBP-${Date.now().toString().slice(-4)}`;
         }
 
         function renderEnergy(containerId, type, count) {
             const el = document.getElementById(containerId);
-            el.innerHTML = '';
+            el.textContent = '';
             for (let i = 0; i < count; i++) {
                 const dot = document.createElement('span');
-                dot.className = 'energy-dot type-' + type;
+                dot.className = `energy-dot type-${type}`;
                 el.appendChild(dot);
             }
-            // Add one colorless
-            const c = document.createElement('span');
-            c.className = 'energy-dot type-Normal';
-            el.appendChild(c);
+            const colorless = document.createElement('span');
+            colorless.className = 'energy-dot type-Normal';
+            el.appendChild(colorless);
         }
 
         async function generatePokemon() {
             const btn = document.getElementById('btnGenerate');
             const loading = document.getElementById('loadingState');
             const result = document.getElementById('cardResult');
-            const error = document.getElementById('errorMsg');
-            const kidName = document.getElementById('kidName').value.trim();
-            const email = document.getElementById('kidEmail').value.trim();
+            const profile = getModeProfile('design');
 
             btn.disabled = true;
             btn.textContent = '⏳ Creating...';
             result.classList.remove('show');
-            error.classList.remove('show');
+            hideMessage();
             loading.classList.add('show');
 
             try {
                 const resp = await fetch('/api/ai/pokemon-create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...choices, kidName, email }),
+                    body: JSON.stringify({
+                        ...choices,
+                        kidName: profile.displayName,
+                        email: profile.email,
+                        acceptTerms: profile.acceptTerms,
+                        acceptPrivacy: profile.acceptPrivacy,
+                    }),
                 });
                 const data = await resp.json();
-                if (!handleApiResponse(resp, data)) { loading.classList.remove('show'); btn.textContent = '⚡ Create My Pokemon Card!'; btn.disabled = false; return; }
-                if (!resp.ok) throw new Error(data.error || 'Something went wrong');
+                if (!handleApiResponse(resp, data)) {
+                    loading.classList.remove('show');
+                    btn.textContent = '⚡ Create My Pokemon Card!';
+                    updateGenerateButtons();
+                    return;
+                }
+                if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
 
                 loading.classList.remove('show');
-                renderCard({ ...data, kidName });
+                renderCard({ ...data, kidName: profile.displayName });
                 result.classList.add('show');
 
-                // Email status
-                const emailStatus = document.getElementById('resultEmailStatus');
-                if (data.emailSent) {
-                    emailStatus.textContent = `📧 Card sent to ${email}!`;
-                } else if (email) {
-                    emailStatus.textContent = '📧 Email delivery pending...';
-                } else {
-                    emailStatus.textContent = '';
-                }
-
+                updateEmailStatus(data.emailStatus, profile.email);
                 celebrate();
-                creations.push({ name: data.name, url: data.imageUrl, creator: kidName });
+                creations.push({ name: data.name, url: data.imageUrl, creator: profile.displayName });
                 updateGallery();
-                if (data.creditsRemaining !== undefined) { creditState.freeUsed = true; creditState.credits = data.creditsRemaining; updateCreditBadge(); }
             } catch (err) {
                 loading.classList.remove('show');
-                error.textContent = '😢 ' + err.message;
-                error.classList.add('show');
+                showMessage(`😢 ${err.message}`);
             }
 
             btn.textContent = '⚡ Create My Pokemon Card!';
-            btn.disabled = false;
+            updateGenerateButtons();
         }
 
         function createAnother() {
             document.getElementById('cardResult').classList.remove('show');
             const badge = document.getElementById('appearanceBadge');
             if (badge) badge.style.display = 'none';
-            choices.color = null; choices.animal = null; choices.power = null;
+            choices.color = null;
+            choices.animal = null;
+            choices.power = null;
             document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
-            document.getElementById('btnGenerate').disabled = true;
+            updateGenerateButtons();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -1749,11 +2114,11 @@
             for (let i = 0; i < 50; i++) {
                 const spark = document.createElement('div');
                 spark.className = 'sparkle';
-                spark.style.left = Math.random() * 100 + 'vw';
-                spark.style.top = Math.random() * 60 + 'vh';
+                spark.style.left = `${Math.random() * 100}vw`;
+                spark.style.top = `${Math.random() * 60}vh`;
                 spark.style.background = colors[Math.floor(Math.random() * colors.length)];
-                spark.style.animationDelay = Math.random() * 0.5 + 's';
-                spark.style.width = spark.style.height = (4 + Math.random() * 6) + 'px';
+                spark.style.animationDelay = `${Math.random() * 0.5}s`;
+                spark.style.width = spark.style.height = `${4 + Math.random() * 6}px`;
                 container.appendChild(spark);
                 setTimeout(() => spark.remove(), 2000);
             }
@@ -1763,17 +2128,25 @@
             if (creations.length === 0) return;
             document.getElementById('gallerySection').style.display = 'block';
             const grid = document.getElementById('galleryGrid');
-            grid.innerHTML = '';
-            creations.forEach(c => {
+            grid.textContent = '';
+            creations.forEach((creation) => {
                 const item = document.createElement('div');
                 item.className = 'gallery-item';
-                const label = c.creator ? `${c.name} · ${c.creator}` : c.name;
-                item.innerHTML = `<img src="${c.url}" alt="${c.name}"><div class="gallery-item-name">${label}</div>`;
+
+                const image = document.createElement('img');
+                image.src = creation.url;
+                image.alt = creation.name;
+
+                const label = document.createElement('div');
+                label.className = 'gallery-item-name';
+                label.textContent = creation.creator ? `${creation.name} · ${creation.creator}` : creation.name;
+
+                item.appendChild(image);
+                item.appendChild(label);
                 grid.appendChild(item);
             });
         }
 
-        // ─── Floating Background Creatures ───
         (function spawnBgCreatures() {
             const creatures = ['⚡', '🔥', '💧', '🌿', '🐱', '🐉', '🐰', '🦊', '🐺', '🐢', '🦄', '🐻', '🦈', '🐦', '👻', '❄️', '🌊', '🔮', '🌟', '✨'];
             const container = document.getElementById('bgCreatures');
@@ -1782,18 +2155,21 @@
                 const el = document.createElement('span');
                 el.className = 'bg-creature';
                 el.textContent = creatures[Math.floor(Math.random() * creatures.length)];
-                el.style.left = (Math.random() * 95) + '%';
-                el.style.top = (Math.random() * 90 + 5) + '%';
-                el.style.setProperty('--dur', (3 + Math.random() * 4) + 's');
-                el.style.setProperty('--drift', (6 + Math.random() * 8) + 's');
-                el.style.setProperty('--drift-dist', (-20 + Math.random() * 40) + 'px');
-                el.style.setProperty('--rot-start', (-15 + Math.random() * 30) + 'deg');
-                el.style.animationDelay = (-Math.random() * 6) + 's';
-                el.style.fontSize = (1 + Math.random() * 0.8) + 'rem';
+                el.style.left = `${Math.random() * 95}%`;
+                el.style.top = `${Math.random() * 90 + 5}%`;
+                el.style.setProperty('--dur', `${3 + Math.random() * 4}s`);
+                el.style.setProperty('--drift', `${6 + Math.random() * 8}s`);
+                el.style.setProperty('--drift-dist', `${-20 + Math.random() * 40}px`);
+                el.style.setProperty('--rot-start', `${-15 + Math.random() * 30}deg`);
+                el.style.animationDelay = `${-Math.random() * 6}s`;
+                el.style.fontSize = `${1 + Math.random() * 0.8}rem`;
                 el.style.opacity = 0.06 + Math.random() * 0.1;
                 container.appendChild(el);
             }
         })();
+
+        fetchSession();
+        updateGenerateButtons();
     </script>
 
 </body>
