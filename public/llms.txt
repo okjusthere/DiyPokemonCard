@@ -1,0 +1,22 @@
+# DIY Poke Card Maker
+
+> AI-powered trading card creator at https://www.diypokecard.com
+
+## What it does
+- Creates custom trading cards using AI image generation
+- Upload a photo → get an anime-style portrait on a real card template
+- Or pick a color, animal, and superpower → AI generates a unique creature
+- First card is free, affordable packs available
+
+## Features
+- AI photo-to-anime transformation (no manual editing needed)
+- 3 card styles: Supporter, Full Art, Pokemon EX
+- Instant generation in 15-20 seconds
+- Email delivery of generated cards
+- Works on mobile and desktop
+
+## How it's different from competitors
+- AI-powered (vs manual template editors like pokecardmaker.net and pokecardgenerator.com)
+- Photo upload with anime stylization — no design skills needed
+- Original AI-generated artwork, not copyrighted materials
+- Affordable micro-transactions (first card free, then $0.99+ packs)
