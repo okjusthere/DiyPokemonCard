@@ -4,9 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎨 DIY Pokemon Card Maker — Create AI-Powered Trading Cards</title>
+    <title>🎨 DIY Poke Card Maker — Create AI-Powered Trading Cards</title>
     <meta name="description"
-        content="Design your own unique Pokemon trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
+        content="Design your own unique trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
+    <link rel="canonical" href="https://www.diypokecard.com">
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/images/favicon.png">
@@ -14,19 +15,20 @@
 
     <!-- Open Graph (Facebook, iMessage, WhatsApp, WeChat, LinkedIn) -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="🎨 DIY Pokemon Card Maker — Create AI-Powered Trading Cards">
+    <meta property="og:title" content="🎨 DIY Poke Card Maker — Create AI-Powered Trading Cards">
     <meta property="og:description"
-        content="Design your own unique Pokemon trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
+        content="Design your own unique trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
     <meta property="og:image" content="/images/og-share.png">
     <meta property="og:image:width" content="1024">
     <meta property="og:image:height" content="1024">
-    <meta property="og:site_name" content="DIY Pokemon Card Maker">
+    <meta property="og:site_name" content="DIY Poke Card Maker">
+    <meta property="og:url" content="https://www.diypokecard.com">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎨 DIY Pokemon Card Maker — Create AI-Powered Trading Cards">
+    <meta name="twitter:title" content="🎨 DIY Poke Card Maker — Create AI-Powered Trading Cards">
     <meta name="twitter:description"
-        content="Design your own unique Pokemon trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
+        content="Design your own unique trading cards with AI! Pick a color, animal, and superpower — get a one-of-a-kind creature with full card stats in seconds.">
     <meta name="twitter:image" content="/images/og-share.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -267,8 +269,8 @@
             font-size: 1.1rem;
         }
 
-        .loading-pokemon {
-            width: 64px;
+        .loading-mascot {
+            font-size: 3.5rem;
             animation: bounce 1s ease-in-out infinite;
             margin-bottom: 16px;
         }
@@ -780,6 +782,64 @@
             display: block;
         }
 
+        /* ─── Card Style Selector ─── */
+        .card-style-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .card-style-btn {
+            background: var(--card);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius);
+            padding: 16px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+            user-select: none;
+        }
+
+        .card-style-btn:hover {
+            border-color: rgba(255, 215, 0, 0.4);
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .card-style-btn.selected {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+        }
+
+        .card-style-emoji {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .card-style-desc {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 4px;
+        }
+
+        /* ── Trainer Card Result ── */
+        .trainer-card-wrap {
+            width: 340px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 80px rgba(192, 192, 192, 0.1);
+        }
+
+        .trainer-card-wrap img {
+            width: 100%;
+            display: block;
+        }
+
         /* ─── Photo Upload ─── */
         .photo-upload-area {
             border: 2px dashed rgba(255, 215, 0, 0.3);
@@ -1227,19 +1287,22 @@
     <!-- Paywall Modal -->
     <div class="paywall-overlay" id="paywallOverlay">
         <div class="paywall-modal">
-            <div class="paywall-title">⚡ Get More Pokemon Cards!</div>
+            <div class="paywall-title">⚡ Get More Cards!</div>
             <div class="paywall-subtitle">Enter the email that should own your paid credits, then choose a plan.</div>
             <div class="account-panel">
                 <label for="paywallEmail">Account email</label>
                 <input class="account-email-input" type="email" id="paywallEmail" placeholder="parent@email.com">
-                <div class="account-note">Paid credits are attached to this email so you can restore them later on a new device.</div>
+                <div class="account-note">Paid credits are attached to this email so you can restore them later on a new
+                    device.</div>
                 <div class="consent-group">
                     <label class="consent-check">
                         <input type="checkbox" id="paywallLegalConsent">
-                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a
+                                href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
                     </label>
                 </div>
-                <button class="restore-link" id="restoreLinkBtn" onclick="sendRestoreLink()" hidden>✉️ Email me a sign-in link</button>
+                <button class="restore-link" id="restoreLinkBtn" onclick="sendRestoreLink()" hidden>✉️ Email me a
+                    sign-in link</button>
                 <div class="restore-status" id="restoreStatus"></div>
             </div>
             <div class="pricing-grid">
@@ -1264,7 +1327,8 @@
                     <div class="pricing-per">$0.50 per card</div>
                 </div>
             </div>
-            <div class="paywall-subtitle">💳 Card checkout is supported. Credits appear automatically after payment confirmation.</div>
+            <div class="paywall-subtitle">💳 Card checkout is supported. Credits appear automatically after payment
+                confirmation.</div>
             <button class="paywall-close" onclick="hidePaywall()">Maybe Later</button>
         </div>
     </div>
@@ -1273,31 +1337,36 @@
     <div class="paywall-overlay" id="emailCardOverlay">
         <div class="paywall-modal">
             <div class="paywall-title">✉️ Email This Card</div>
-            <div class="paywall-subtitle">You can play for free first. We only ask for agreement when you actually send a card.</div>
+            <div class="paywall-subtitle">You can play for free first. We only ask for agreement when you actually send
+                a card.</div>
             <div class="account-panel">
                 <label for="emailCardName">Name on the card</label>
-                <input class="account-email-input" type="text" id="emailCardName" placeholder="Your name" maxlength="30">
+                <input class="account-email-input" type="text" id="emailCardName" placeholder="Your name"
+                    maxlength="30">
                 <label for="emailCardInput" style="margin-top: 14px;">Send to email</label>
                 <input class="account-email-input" type="email" id="emailCardInput" placeholder="parent@email.com">
-                <div class="account-note">This email can also be used later to restore paid credits on another device.</div>
+                <div class="account-note">This email can also be used later to restore paid credits on another device.
+                </div>
                 <div class="consent-group">
                     <label class="consent-check">
                         <input type="checkbox" id="emailCardLegalConsent">
-                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a
+                                href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
                     </label>
                 </div>
                 <div class="restore-status" id="emailCardStatus"></div>
             </div>
             <div class="email-modal-actions">
                 <button class="paywall-close" onclick="closeEmailModal()">Maybe Later</button>
-                <button class="btn-action email-primary" id="sendCardBtn" onclick="sendCurrentCardEmail()">Send My Card</button>
+                <button class="btn-action email-primary" id="sendCardBtn" onclick="sendCurrentCardEmail()">Send My
+                    Card</button>
             </div>
         </div>
     </div>
 
     <div class="hero">
-        <h1>🎨 DIY Pokemon Card Maker</h1>
-        <p>Create your very own AI-powered Pokemon trading card! ⚡</p>
+        <h1>🎨 DIY Poke Card Maker</h1>
+        <p>Create your very own AI-powered trading card! ⚡</p>
     </div>
 
     <div class="creator-container">
@@ -1325,7 +1394,8 @@
                         <input type="email" id="kidEmail" placeholder="parent@email.com">
                     </div>
                 </div>
-                <div class="input-hint">✨ Generate first for free. If you love the card, you can email it to yourself later.</div>
+                <div class="input-hint">✨ Generate first for free. If you love the card, you can email it to yourself
+                    later.</div>
             </div>
 
             <!-- Color -->
@@ -1399,7 +1469,7 @@
 
             <!-- Generate (Design Mode) -->
             <div class="generate-wrap">
-                <button class="btn-generate" id="btnGenerate" onclick="generatePokemon()" disabled>⚡ Create My Pokemon
+                <button class="btn-generate" id="btnGenerate" onclick="generatePokemon()" disabled>⚡ Create My
                     Card!</button>
             </div>
 
@@ -1421,15 +1491,18 @@
                         <input type="email" id="photoKidEmail" placeholder="parent@email.com">
                     </div>
                 </div>
-                <div class="input-hint">📧 We'll email your card if you want, and this email is also used to restore paid credits later.</div>
+                <div class="input-hint">📧 We'll email your card if you want, and this email is also used to restore
+                    paid credits later.</div>
                 <div class="consent-group">
                     <label class="consent-check">
                         <input type="checkbox" id="photoLegalConsent">
-                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a
+                                href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
                     </label>
                     <label class="consent-check">
                         <input type="checkbox" id="photoParentConsent">
-                        <span>I confirm I am the parent/guardian, or I have parent/guardian permission to upload this photo for AI processing.</span>
+                        <span>I confirm I am the parent/guardian, or I have parent/guardian permission to upload this
+                            photo for AI processing.</span>
                     </label>
                 </div>
             </div>
@@ -1447,14 +1520,41 @@
                     <img id="photoPreview" class="photo-preview" alt="Preview">
                     <button class="photo-change-btn" onclick="changePhoto()">🔄 Change Photo</button>
                 </div>
-                <div class="input-hint" style="margin-top: 12px;">🤖 AI will analyze your photo and create a Pokemon
-                    creature inspired by your look!</div>
+                <div class="input-hint" style="margin-top: 12px;">🎨 AI will transform your photo into a Pokemon
+                    anime-style portrait and place it on a real trading card!</div>
             </div>
 
-            <!-- Generate Button (Photo Mode) -->
+            <!-- Card Title -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">✏️</span> Card Title (optional)</div>
+                <div class="input-group">
+                    <input type="text" id="photoCardTitle" placeholder="e.g. Wedding Day, Best Friends, Adventure Time"
+                        maxlength="30">
+                </div>
+                <div class="input-hint">Leave blank and AI will suggest a title based on your photo.</div>
+            </div>
+
+            <!-- Card Style -->
+            <div class="step">
+                <div class="step-label"><span class="step-num">🃏</span> Card Style</div>
+                <div class="card-style-options">
+                    <button class="card-style-btn selected" onclick="pickCardStyle('supporter', this)">
+                        <span class="card-style-emoji">🪪</span>Supporter
+                        <span class="card-style-desc">Classic silver frame</span>
+                    </button>
+                    <button class="card-style-btn" onclick="pickCardStyle('fullart', this)">
+                        <span class="card-style-emoji">🖼️</span>Full Art
+                        <span class="card-style-desc">Edge-to-edge art</span>
+                    </button>
+                    <button class="card-style-btn" onclick="pickCardStyle('ex', this)">
+                        <span class="card-style-emoji">⚔️</span>Pokemon EX
+                        <span class="card-style-desc">Colorful power card</span>
+                    </button>
+                </div>
+            </div> <!-- Generate Button (Photo Mode) -->
             <div class="generate-wrap">
                 <button class="btn-generate" id="btnGeneratePhoto" disabled onclick="generateFromPhoto()">
-                    ⚡ Create My Pokemon Card!
+                    ⚡ Create My Card!
                 </button>
             </div>
 
@@ -1462,10 +1562,9 @@
 
         <!-- Loading -->
         <div class="loading-overlay" id="loadingState">
-            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/132.png"
-                alt="Ditto" class="loading-pokemon">
+            <div class="loading-mascot">🎨</div>
             <div class="loading-spinner"></div>
-            <div class="loading-text">Ditto is creating your Pokemon card...</div>
+            <div class="loading-text">Creating your card with AI magic...</div>
             <div class="loading-text" style="font-size:0.85rem; margin-top:8px; color:rgba(255,255,255,0.4);">This takes
                 about 15-20 seconds ✨</div>
         </div>
@@ -1492,7 +1591,7 @@
                 <!-- Image -->
                 <div class="card-image-frame">
                     <img id="cardImage" src="" alt="Pokemon">
-                    <div class="card-image-label" id="cardImageLabel">DIY Pokemon Card Maker</div>
+                    <div class="card-image-label" id="cardImageLabel">DIY Poke Card Maker</div>
                 </div>
 
                 <!-- Type -->
@@ -1542,7 +1641,7 @@
 
                 <!-- Footer -->
                 <div class="card-footer">
-                    🃏 DIY Pokemon Card Collection · <span id="cardId">YBP-001</span> · ★
+                    🃏 DIY Poke Card Collection · <span id="cardId">YBP-001</span> · ★
                 </div>
             </div>
 
@@ -1571,13 +1670,21 @@
             <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a>
             <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy</a>
         </div>
-        <div>Photo uploads are processed transiently to generate a card and are not stored by this app after the request completes.</div>
+        <div>Photo uploads are processed transiently to generate a card and are not stored by this app after the request
+            completes.</div>
+        <div
+            style="margin-top:12px; font-size:0.7rem; color:rgba(255,255,255,0.25); max-width:600px; margin-left:auto; margin-right:auto;">
+            This is an unofficial fan-made project. It is not affiliated with, endorsed by, or associated with Nintendo,
+            Game Freak, Creatures Inc., or The Pokémon Company. Pokémon and all related marks are trademarks of their
+            respective owners. All AI-generated artwork is original and does not use copyrighted materials.
+        </div>
     </footer>
 
     <script>
         const choices = { color: null, animal: null, power: null };
         const creations = [];
         let photoBase64 = null;
+        let selectedCardStyle = 'supporter';
         let restoreAvailable = false;
         let currentCardResult = null;
         let creditState = {
@@ -2085,12 +2192,14 @@
                         acceptTerms: profile.acceptTerms,
                         acceptPrivacy: profile.acceptPrivacy,
                         photoParentConsent: profile.photoParentConsent,
+                        cardTitle: document.getElementById('photoCardTitle').value.trim(),
+                        cardStyle: selectedCardStyle,
                     }),
                 });
                 const data = await resp.json();
                 if (!handleApiResponse(resp, data)) {
                     loading.classList.remove('show');
-                    btn.textContent = '⚡ Create My Pokemon Card!';
+                    btn.textContent = '⚡ Create My Card!';
                     updateGenerateButtons();
                     return;
                 }
@@ -2113,8 +2222,14 @@
                 showMessage(`😢 ${err.message}`);
             }
 
-            btn.textContent = '⚡ Create My Pokemon Card!';
+            btn.textContent = '⚡ Create My Card!';
             updateGenerateButtons();
+        }
+
+        function pickCardStyle(style, btn) {
+            selectedCardStyle = style;
+            document.querySelectorAll('.card-style-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
         }
 
         function pick(type, val, btn) {
@@ -2125,63 +2240,122 @@
         }
 
         function renderCard(data) {
-            const { imageUrl, name, cardData, kidName } = data;
+            const { imageUrl, name, cardData, trainerData, kidName } = data;
             const card = document.getElementById('pokemonCard');
-            const type = cardData.type || 'Normal';
+            const isTrainerCard = data.mode === 'photo' && trainerData;
 
             currentCardResult = {
                 generationId: data.generationId,
                 imageUrl,
-                name,
+                name: name || (trainerData && trainerData.title) || (cardData && cardData.name),
                 cardData,
+                trainerData,
                 displayName: kidName || 'Trainer',
                 mode: data.mode || currentMode(),
                 emailStatus: data.emailStatus || 'not_requested',
             };
 
-            card.setAttribute('data-type', type);
-            document.getElementById('cardName').textContent = name;
-            document.getElementById('cardHP').textContent = cardData.hp || 60;
-            document.getElementById('cardImage').src = imageUrl;
-            document.getElementById('cardTypeName').textContent = type;
-            document.getElementById('cardCreator').textContent = kidName || 'Trainer';
-
-            const typeIcon = document.getElementById('cardTypeIcon');
-            typeIcon.className = `type-icon type-${type}`;
-
-            const a1 = cardData.attack1 || {};
-            document.getElementById('attack1Name').textContent = a1.name || 'Tackle';
-            document.getElementById('attack1Desc').textContent = a1.desc || '';
-            document.getElementById('attack1Dmg').textContent = a1.damage || 20;
-            renderEnergy('attack1Energy', type, 1);
-
-            const a2 = cardData.attack2 || {};
-            document.getElementById('attack2Name').textContent = a2.name || 'Strike';
-            document.getElementById('attack2Desc').textContent = a2.desc || '';
-            document.getElementById('attack2Dmg').textContent = a2.damage || 40;
-            renderEnergy('attack2Energy', type, 2);
-
-            const we = cardData.weakness || 'Normal';
-            const re = cardData.resistance || 'Normal';
-            document.getElementById('cardWeakness').textContent = `${TYPE_EMOJI[we] || '⚪'} ×2`;
-            document.getElementById('cardResistance').textContent = `${TYPE_EMOJI[re] || '⚪'} -20`;
-            document.getElementById('cardRetreat').textContent = '⚪'.repeat(cardData.retreatCost || 1);
-            document.getElementById('cardFlavor').textContent = cardData.flavor || 'A creature born from pure imagination.';
-            document.getElementById('cardId').textContent = `YBP-${Date.now().toString().slice(-4)}`;
+            if (isTrainerCard) {
+                // For Trainer cards, show the AI portrait directly with a minimal frame
+                card.removeAttribute('data-type');
+                card.style.background = 'none';
+                card.style.border = 'none';
+                card.style.boxShadow = 'none';
+                card.innerHTML = `
+                    <div class="trainer-card-wrap">
+                        <img src="${imageUrl}" alt="${name || 'Pokemon Card'}" style="width:100%; border-radius:16px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+                    </div>
+                    <div style="text-align:center; margin-top:12px; color:var(--gold); font-size:1.2rem; font-weight:700;">
+                        ${trainerData.title || 'Trainer Card'}
+                    </div>
+                    <div style="text-align:center; margin-top:6px; color:rgba(255,255,255,0.5); font-size:0.85rem; font-style:italic;">
+                        ${trainerData.effect || ''}
+                    </div>
+                `;
+            } else {
+                // Standard Pokemon card rendering (Design mode)
+                const type = cardData.type || 'Normal';
+                card.style.background = '';
+                card.style.border = '';
+                card.style.boxShadow = '';
+                card.setAttribute('data-type', type);
+                card.innerHTML = generateStandardCardHTML(cardData, imageUrl, kidName);
+            }
             updateEmailActionButton();
         }
 
-        function renderEnergy(containerId, type, count) {
-            const el = document.getElementById(containerId);
-            el.textContent = '';
+        function generateStandardCardHTML(cardData, imageUrl, kidName) {
+            const type = cardData.type || 'Normal';
+            const a1 = cardData.attack1 || {};
+            const a2 = cardData.attack2 || {};
+            const we = cardData.weakness || 'Normal';
+            const re = cardData.resistance || 'Normal';
+
+            return `
+                <div class="card-header">
+                    <div>
+                        <div class="card-stage">Basic Pokémon</div>
+                        <div class="card-name">${cardData.name || 'Mysteon'}</div>
+                    </div>
+                    <div class="card-hp">
+                        <span class="card-hp-val">${cardData.hp || 60}</span>
+                        <span class="card-hp-label">HP</span>
+                    </div>
+                </div>
+                <div class="card-image-frame">
+                    <img src="${imageUrl}" alt="Pokemon">
+                    <div class="card-image-label">DIY Poke Card Maker</div>
+                </div>
+                <div class="card-type-badge">
+                    <span class="type-icon type-${type}"></span>
+                    <span>${type}</span> Type · Created by <strong>${kidName || 'Trainer'}</strong>
+                </div>
+                <div class="card-attacks">
+                    <div class="card-attack">
+                        <div class="attack-energy">${renderEnergyHTML(type, 1)}</div>
+                        <div class="attack-info">
+                            <div class="attack-name">${a1.name || 'Tackle'}</div>
+                            <div class="attack-desc">${a1.desc || ''}</div>
+                        </div>
+                        <div class="attack-damage">${a1.damage || 20}</div>
+                    </div>
+                    <div class="card-attack">
+                        <div class="attack-energy">${renderEnergyHTML(type, 2)}</div>
+                        <div class="attack-info">
+                            <div class="attack-name">${a2.name || 'Strike'}</div>
+                            <div class="attack-desc">${a2.desc || ''}</div>
+                        </div>
+                        <div class="attack-damage">${a2.damage || 40}</div>
+                    </div>
+                </div>
+                <div class="card-bottom">
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Weakness</span>
+                        <span class="card-bottom-val">${TYPE_EMOJI[we] || '⚪'} ×2</span>
+                    </div>
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Resistance</span>
+                        <span class="card-bottom-val">${TYPE_EMOJI[re] || '⚪'} -20</span>
+                    </div>
+                    <div class="card-bottom-item">
+                        <span class="card-bottom-label">Retreat</span>
+                        <span class="card-bottom-val">${'⚪'.repeat(cardData.retreatCost || 1)}</span>
+                    </div>
+                </div>
+                <div class="card-flavor">${cardData.flavor || 'A creature born from pure imagination.'}</div>
+                <div class="card-footer">
+                    🃏 DIY Poke Card Collection · YBP-${Date.now().toString().slice(-4)} · ★
+                </div>
+            `;
+        }
+
+        function renderEnergyHTML(type, count) {
+            let html = '';
             for (let i = 0; i < count; i++) {
-                const dot = document.createElement('span');
-                dot.className = `energy-dot type-${type}`;
-                el.appendChild(dot);
+                html += `<span class="energy-dot type-${type}"></span>`;
             }
-            const colorless = document.createElement('span');
-            colorless.className = 'energy-dot type-Normal';
-            el.appendChild(colorless);
+            html += '<span class="energy-dot type-Normal"></span>';
+            return html;
         }
 
         async function generatePokemon() {
@@ -2208,7 +2382,7 @@
                 const data = await resp.json();
                 if (!handleApiResponse(resp, data)) {
                     loading.classList.remove('show');
-                    btn.textContent = '⚡ Create My Pokemon Card!';
+                    btn.textContent = '⚡ Create My Card!';
                     updateGenerateButtons();
                     return;
                 }
@@ -2227,7 +2401,7 @@
                 showMessage(`😢 ${err.message}`);
             }
 
-            btn.textContent = '⚡ Create My Pokemon Card!';
+            btn.textContent = '⚡ Create My Card!';
             updateGenerateButtons();
         }
 
@@ -2239,7 +2413,18 @@
             choices.color = null;
             choices.animal = null;
             choices.power = null;
+            selectedCardStyle = 'supporter';
             document.querySelectorAll('.opt-btn').forEach((button) => button.classList.remove('selected'));
+            document.querySelectorAll('.card-style-btn').forEach((b, i) => {
+                b.classList.toggle('selected', i === 0);
+            });
+            const cardTitleInput = document.getElementById('photoCardTitle');
+            if (cardTitleInput) cardTitleInput.value = '';
+            // Reset card container styles
+            const card = document.getElementById('pokemonCard');
+            card.style.background = '';
+            card.style.border = '';
+            card.style.boxShadow = '';
             document.getElementById('resultEmailStatus').textContent = '';
             closeEmailModal();
             updateEmailActionButton();

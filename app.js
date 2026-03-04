@@ -17,6 +17,9 @@ const SESSION_TOUCH_INTERVAL_MS = 1000 * 60 * 15;
 const RAW_IMAGE_TIMEOUT_MS = 15000;
 const MAX_PHOTO_DATA_URL_LENGTH = 7_000_000;
 
+const CARD_STYLES = new Set(['supporter', 'fullart', 'ex']);
+const DEFAULT_CARD_STYLE = 'supporter';
+
 const SUPPORTED_TYPES = new Set([
   'Fire',
   'Water',
@@ -192,6 +195,17 @@ function normalizeCardData(raw) {
     resistance: normalizeType(card.resistance || 'Normal'),
     retreatCost: clamp(Number.parseInt(card.retreatCost, 10) || 1, 0, 4),
     flavor: sanitizeText(card.flavor, 'A creature born from pure imagination.', 160),
+  };
+}
+
+function normalizeTrainerCardData(raw) {
+  const card = raw && typeof raw === 'object' ? raw : {};
+  return {
+    title: sanitizeText(card.title, 'Trainer Card', 30),
+    effect: sanitizeText(card.effect, 'Draw 2 cards.', 200),
+    flavor: sanitizeText(card.flavor, 'A special moment captured forever.', 160),
+    cardStyle: CARD_STYLES.has(card.cardStyle) ? card.cardStyle : DEFAULT_CARD_STYLE,
+    ruleText: sanitizeText(card.ruleText, 'You may play only 1 Supporter card during your turn (before your attack).', 120),
   };
 }
 
@@ -1313,6 +1327,404 @@ async function generateCardImage(imageBuffer, cardData, displayName) {
   return canvas.toBuffer('image/jpeg', { quality: 95 });
 }
 
+async function generateTrainerCardImage(imageBuffer, trainerData, displayName) {
+  const SCALE = 2;
+  const CW = 630 * SCALE;
+  const CH = 880 * SCALE;
+  const PAD = 30 * SCALE;
+  const S = (px) => px * SCALE;
+
+  const canvas = createCanvas(CW, CH);
+  const ctx = canvas.getContext('2d');
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function wrapText(text, x, startY, maxWidth, lineHeight) {
+    let lineStr = '';
+    let curY = startY;
+    for (const word of text.split(' ')) {
+      const next = `${lineStr}${word} `;
+      if (ctx.measureText(next).width > maxWidth && lineStr) {
+        ctx.fillText(lineStr.trim(), x, curY);
+        lineStr = `${word} `;
+        curY += lineHeight;
+      } else {
+        lineStr = next;
+      }
+    }
+    if (lineStr.trim()) {
+      ctx.fillText(lineStr.trim(), x, curY);
+      curY += lineHeight;
+    }
+    return curY;
+  }
+
+  const style = trainerData.cardStyle || 'supporter';
+
+  if (style === 'supporter') {
+    // ── Supporter Card: Silver/white border, clean elegant look ──
+    const borderGrad = ctx.createLinearGradient(0, 0, CW, CH);
+    borderGrad.addColorStop(0, '#c0c0c0');
+    borderGrad.addColorStop(0.3, '#e8e8e8');
+    borderGrad.addColorStop(0.5, '#f5f5f5');
+    borderGrad.addColorStop(0.7, '#e8e8e8');
+    borderGrad.addColorStop(1, '#c0c0c0');
+    rr(0, 0, CW, CH, S(16));
+    ctx.fillStyle = borderGrad;
+    ctx.fill();
+
+    // Inner card
+    rr(S(12), S(12), CW - S(24), CH - S(24), S(12));
+    ctx.fillStyle = '#fafafa';
+    ctx.fill();
+
+    // Top bar: "Supporter" badge + "TRAINER" label
+    const barY = S(20);
+    // "Supporter" badge (orange pill)
+    const badgeW = S(100);
+    const badgeH = S(24);
+    const badgeX = S(24);
+    rr(badgeX, barY, badgeW, badgeH, S(12));
+    const badgeGrad = ctx.createLinearGradient(badgeX, barY, badgeX + badgeW, barY);
+    badgeGrad.addColorStop(0, '#f59e0b');
+    badgeGrad.addColorStop(1, '#d97706');
+    ctx.fillStyle = badgeGrad;
+    ctx.fill();
+    ctx.font = `700 ${S(12)}px CardFontBold`;
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText('Supporter', badgeX + badgeW / 2, barY + S(17));
+
+    // "TRAINER" label on right
+    ctx.font = `700 ${S(16)}px CardFontBold`;
+    ctx.fillStyle = '#2e7d32';
+    ctx.textAlign = 'right';
+    ctx.fillText('TRAINER', CW - S(28), barY + S(18));
+    ctx.textAlign = 'left';
+
+    // Card Title (large)
+    ctx.font = `700 ${S(36)}px CardFontBold`;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.textAlign = 'center';
+    ctx.fillText(trainerData.title || 'Trainer Card', CW / 2, S(88));
+    ctx.textAlign = 'left';
+
+    // Image frame
+    const imgX = PAD;
+    const imgY = S(100);
+    const imgW = CW - PAD * 2;
+    const imgH = S(380);
+
+    rr(imgX, imgY, imgW, imgH, S(8));
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fill();
+
+    try {
+      const image = await loadImage(imageBuffer);
+      ctx.save();
+      rr(imgX + S(2), imgY + S(2), imgW - S(4), imgH - S(4), S(6));
+      ctx.clip();
+      // Cover fit
+      const srcRatio = image.width / image.height;
+      const dstRatio = (imgW - S(4)) / (imgH - S(4));
+      let sx = 0, sy = 0, sw = image.width, sh = image.height;
+      if (srcRatio > dstRatio) {
+        sw = image.height * dstRatio;
+        sx = (image.width - sw) / 2;
+      } else {
+        sh = image.width / dstRatio;
+        sy = (image.height - sh) / 2;
+      }
+      ctx.drawImage(image, sx, sy, sw, sh, imgX + S(2), imgY + S(2), imgW - S(4), imgH - S(4));
+      ctx.restore();
+    } catch (error) {
+      console.error('Failed to load portrait image:', error.message);
+    }
+
+    // Effect text area
+    const effectY = imgY + imgH + S(20);
+    ctx.font = `400 ${S(14)}px CardFont`;
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'left';
+    const effectEndY = wrapText(trainerData.effect || 'Draw 2 cards.', PAD + S(4), effectY, CW - PAD * 2 - S(8), S(20));
+
+    // Separator line
+    const sepY = effectEndY + S(10);
+    ctx.beginPath();
+    ctx.moveTo(PAD, sepY);
+    ctx.lineTo(CW - PAD, sepY);
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = SCALE;
+    ctx.stroke();
+
+    // Rule text
+    ctx.font = `italic ${S(11)}px CardFont`;
+    ctx.fillStyle = '#888';
+    const ruleY = sepY + S(18);
+    wrapText(
+      trainerData.ruleText || 'You may play only 1 Supporter card during your turn (before your attack).',
+      PAD + S(4), ruleY, CW - PAD * 2 - S(8), S(16)
+    );
+
+    // Footer: illustrator + date
+    ctx.font = `400 ${S(10)}px CardFont`;
+    ctx.fillStyle = '#bbb';
+    ctx.textAlign = 'left';
+    const footY = CH - S(32);
+    ctx.fillText(`Illus. AI · ${displayName}`, PAD, footY);
+    const dateStr = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+    ctx.font = `400 ${S(10)}px CardFont`;
+    ctx.fillStyle = '#bbb';
+    ctx.textAlign = 'right';
+    ctx.fillText(`♥ ${dateStr}`, CW - PAD, footY);
+
+    // Copyright line
+    ctx.font = `400 ${S(8)}px CardFont`;
+    ctx.fillStyle = '#ccc';
+    ctx.textAlign = 'center';
+    ctx.fillText('DIY Pokemon Card Maker · Created with AI', CW / 2, CH - S(16));
+
+  } else if (style === 'fullart') {
+    // ── Full Art Card: Large portrait fills most of the card ──
+    rr(0, 0, CW, CH, S(16));
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fill();
+
+    // Colorful border
+    rr(S(4), S(4), CW - S(8), CH - S(8), S(14));
+    const fullBorderGrad = ctx.createLinearGradient(0, 0, CW, CH);
+    fullBorderGrad.addColorStop(0, '#667eea');
+    fullBorderGrad.addColorStop(0.5, '#764ba2');
+    fullBorderGrad.addColorStop(1, '#f093fb');
+    ctx.strokeStyle = fullBorderGrad;
+    ctx.lineWidth = S(6);
+    ctx.stroke();
+
+    // Image fills most of the card
+    const faImgX = S(16);
+    const faImgY = S(16);
+    const faImgW = CW - S(32);
+    const faImgH = CH - S(200);
+
+    try {
+      const image = await loadImage(imageBuffer);
+      ctx.save();
+      rr(faImgX, faImgY, faImgW, faImgH, S(10));
+      ctx.clip();
+      const srcRatio = image.width / image.height;
+      const dstRatio = faImgW / faImgH;
+      let sx = 0, sy = 0, sw = image.width, sh = image.height;
+      if (srcRatio > dstRatio) {
+        sw = image.height * dstRatio;
+        sx = (image.width - sw) / 2;
+      } else {
+        sh = image.width / dstRatio;
+        sy = (image.height - sh) / 2;
+      }
+      ctx.drawImage(image, sx, sy, sw, sh, faImgX, faImgY, faImgW, faImgH);
+      ctx.restore();
+    } catch (error) {
+      console.error('Failed to load portrait image:', error.message);
+    }
+
+    // Gradient overlay at bottom of image
+    const overlayGrad = ctx.createLinearGradient(0, faImgY + faImgH - S(120), 0, faImgY + faImgH);
+    overlayGrad.addColorStop(0, 'rgba(26,26,46,0)');
+    overlayGrad.addColorStop(1, 'rgba(26,26,46,0.9)');
+    ctx.save();
+    rr(faImgX, faImgY, faImgW, faImgH, S(10));
+    ctx.clip();
+    ctx.fillStyle = overlayGrad;
+    ctx.fillRect(faImgX, faImgY + faImgH - S(120), faImgW, S(120));
+    ctx.restore();
+
+    // Title over image bottom
+    ctx.font = `700 ${S(32)}px CardFontBold`;
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = S(8);
+    ctx.fillText(trainerData.title || 'Trainer Card', CW / 2, faImgY + faImgH - S(20));
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // "TAG TEAM" or style label over image top
+    ctx.font = `700 ${S(12)}px CardFontBold`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = S(4);
+    ctx.fillText('TRAINER · FULL ART', S(26), S(36));
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // Text below image
+    const faTextY = faImgY + faImgH + S(16);
+    ctx.font = `400 ${S(12)}px CardFont`;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.textAlign = 'left';
+    const faEffectEndY = wrapText(trainerData.effect || 'Draw 2 cards.', PAD, faTextY, CW - PAD * 2, S(16));
+
+    ctx.font = `italic ${S(10)}px CardFont`;
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    wrapText(
+      trainerData.ruleText || 'You may play only 1 Supporter card during your turn.',
+      PAD, faEffectEndY + S(6), CW - PAD * 2, S(14)
+    );
+
+    // Footer
+    ctx.font = `400 ${S(9)}px CardFont`;
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.textAlign = 'center';
+    const dateStr = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+    ctx.fillText(`Illus. AI · ${displayName} · ♥ ${dateStr}`, CW / 2, CH - S(16));
+
+  } else {
+    // ── Pokemon EX Card: Colorful border with HP ──
+    const exBorderGrad = ctx.createLinearGradient(0, 0, CW, CH);
+    exBorderGrad.addColorStop(0, '#e53935');
+    exBorderGrad.addColorStop(0.3, '#ff7043');
+    exBorderGrad.addColorStop(0.5, '#ffa726');
+    exBorderGrad.addColorStop(0.7, '#ff7043');
+    exBorderGrad.addColorStop(1, '#e53935');
+    rr(0, 0, CW, CH, S(16));
+    ctx.fillStyle = exBorderGrad;
+    ctx.fill();
+
+    // Inner card
+    rr(S(10), S(10), CW - S(20), CH - S(20), S(12));
+    ctx.fillStyle = '#fff8e1';
+    ctx.fill();
+
+    // Foil shimmer
+    const exShimmer = ctx.createLinearGradient(0, 0, CW, CH * 0.5);
+    exShimmer.addColorStop(0, 'rgba(255,255,255,0)');
+    exShimmer.addColorStop(0.45, 'rgba(255,255,255,0.1)');
+    exShimmer.addColorStop(0.5, 'rgba(255,255,255,0.18)');
+    exShimmer.addColorStop(0.55, 'rgba(255,255,255,0.1)');
+    exShimmer.addColorStop(1, 'rgba(255,255,255,0)');
+    rr(S(10), S(10), CW - S(20), CH - S(20), S(12));
+    ctx.fillStyle = exShimmer;
+    ctx.fill();
+
+    // Top: STAGE label + name + "ex" + HP
+    ctx.font = `700 ${S(10)}px CardFontBold`;
+    ctx.fillStyle = '#cc0000';
+    ctx.textAlign = 'left';
+    ctx.fillText('STAGE 1', PAD, S(36));
+
+    ctx.font = `700 ${S(30)}px CardFontBold`;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText(trainerData.title || 'Trainer', PAD, S(72));
+
+    // "ex" text
+    ctx.font = `italic 700 ${S(20)}px CardFontBold`;
+    ctx.fillStyle = '#cc0000';
+    const nameW = ctx.measureText(trainerData.title || 'Trainer').width;
+    ctx.fillText('ex', PAD + nameW + S(8), S(72));
+
+    // HP
+    ctx.font = `700 ${S(12)}px CardFontBold`;
+    ctx.fillStyle = '#cc0000';
+    ctx.textAlign = 'right';
+    ctx.fillText('HP', CW - PAD - S(60), S(46));
+    ctx.font = `700 ${S(36)}px CardFontBold`;
+    ctx.fillText('240', CW - PAD, S(72));
+    ctx.textAlign = 'left';
+
+    // Image
+    const exImgX = PAD;
+    const exImgY = S(86);
+    const exImgW = CW - PAD * 2;
+    const exImgH = S(340);
+
+    rr(exImgX, exImgY, exImgW, exImgH, S(8));
+    ctx.fillStyle = '#e0d5b5';
+    ctx.fill();
+
+    try {
+      const image = await loadImage(imageBuffer);
+      ctx.save();
+      rr(exImgX + S(2), exImgY + S(2), exImgW - S(4), exImgH - S(4), S(6));
+      ctx.clip();
+      const srcRatio = image.width / image.height;
+      const dstRatio = (exImgW - S(4)) / (exImgH - S(4));
+      let sx = 0, sy = 0, sw = image.width, sh = image.height;
+      if (srcRatio > dstRatio) {
+        sw = image.height * dstRatio;
+        sx = (image.width - sw) / 2;
+      } else {
+        sh = image.width / dstRatio;
+        sy = (image.height - sh) / 2;
+      }
+      ctx.drawImage(image, sx, sy, sw, sh, exImgX + S(2), exImgY + S(2), exImgW - S(4), exImgH - S(4));
+      ctx.restore();
+    } catch (error) {
+      console.error('Failed to load portrait image:', error.message);
+    }
+
+    // Ability section
+    const abilityY = exImgY + exImgH + S(12);
+    ctx.font = `700 ${S(10)}px CardFontBold`;
+    ctx.fillStyle = '#cc0000';
+    ctx.fillText('Ability', PAD, abilityY);
+
+    ctx.font = `700 ${S(18)}px CardFontBold`;
+    ctx.fillStyle = '#1a1a1a';
+    const abilityNameY = abilityY + S(22);
+    ctx.fillText(trainerData.title ? `${trainerData.title}'s Power` : 'Special Power', PAD, abilityNameY);
+
+    ctx.font = `400 ${S(11)}px CardFont`;
+    ctx.fillStyle = '#555';
+    const abilityTextY = abilityNameY + S(16);
+    const abilityEndY = wrapText(trainerData.effect || 'Draw 2 cards.', PAD, abilityTextY, CW - PAD * 2, S(16));
+
+    // Separator
+    ctx.beginPath();
+    ctx.moveTo(PAD, abilityEndY + S(6));
+    ctx.lineTo(CW - PAD, abilityEndY + S(6));
+    ctx.strokeStyle = '#d0c8a8';
+    ctx.lineWidth = SCALE;
+    ctx.stroke();
+
+    // Flavor text
+    ctx.font = `italic ${S(11)}px CardFont`;
+    ctx.fillStyle = '#888';
+    const flavorY = abilityEndY + S(22);
+    wrapText(trainerData.flavor || 'A special moment.', PAD, flavorY, CW - PAD * 2, S(16));
+
+    // Pokemon ex rule
+    ctx.font = `700 ${S(9)}px CardFontBold`;
+    ctx.fillStyle = '#cc0000';
+    ctx.textAlign = 'left';
+    ctx.fillText('Pokémon ex rule', PAD, CH - S(50));
+    ctx.font = `400 ${S(9)}px CardFont`;
+    ctx.fillStyle = '#888';
+    ctx.fillText('When your Pokémon ex is Knocked Out, your opponent takes 2 Prize cards.', PAD, CH - S(36));
+
+    // Footer
+    ctx.font = `400 ${S(9)}px CardFont`;
+    ctx.fillStyle = '#bbb';
+    ctx.textAlign = 'center';
+    const dateStr = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+    ctx.fillText(`Illus. AI · ${displayName} · ♥ ${dateStr}`, CW / 2, CH - S(16));
+  }
+
+  return canvas.toBuffer('image/jpeg', { quality: 95 });
+}
+
 function createApp(options = {}) {
   registerFonts();
 
@@ -1321,6 +1733,17 @@ function createApp(options = {}) {
 
   app.set('trust proxy', env.TRUST_PROXY || true);
   app.use(applySecurityHeaders);
+
+  // Redirect bare domain → www (SEO + Stripe consistency)
+  if ((env.BASE_URL || '').includes('www.')) {
+    app.use((req, res, next) => {
+      const host = req.get('host') || '';
+      if (host && !host.startsWith('www.') && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        return res.redirect(301, `https://www.${host}${req.originalUrl}`);
+      }
+      next();
+    });
+  }
 
   const dataDir = options.dataDir || env.DATA_DIR || path.join(__dirname, 'data');
   const dbPath = options.dbPath || env.DB_PATH || path.join(dataDir, 'credits.db');
@@ -1513,18 +1936,23 @@ function createApp(options = {}) {
     }
   });
 
-  async function buildCardResponse({ requestId, accountId, mode, imageUrl, cardData, displayName, email, fromPhoto }) {
-    services.storeGenerationResult(accountId, requestId, mode, imageUrl, cardData, displayName);
+  async function buildCardResponse({ requestId, accountId, mode, imageUrl, cardData, trainerData, displayName, email, fromPhoto }) {
+    services.storeGenerationResult(accountId, requestId, mode, imageUrl, cardData || trainerData, displayName);
 
     let emailStatus = 'not_requested';
 
     if (email) {
       const rawImgBuffer = await downloadImageBuffer(imageUrl);
-      const cardImgBuffer = await generateCardImage(rawImgBuffer, cardData, displayName);
+      let cardImgBuffer;
+      if (fromPhoto && trainerData) {
+        cardImgBuffer = await generateTrainerCardImage(rawImgBuffer, trainerData, displayName);
+      } else {
+        cardImgBuffer = await generateCardImage(rawImgBuffer, cardData, displayName);
+      }
       const emailResult = await services.maybeSendCardEmail({
         email,
         displayName,
-        pokemonName: cardData.name,
+        pokemonName: (trainerData && trainerData.title) || (cardData && cardData.name) || 'Pokemon Card',
         rawImgBuffer,
         cardImgBuffer,
         fromPhoto,
@@ -1535,8 +1963,9 @@ function createApp(options = {}) {
     return {
       generationId: requestId,
       imageUrl,
-      name: cardData.name,
-      cardData,
+      name: (trainerData && trainerData.title) || (cardData && cardData.name),
+      cardData: cardData || null,
+      trainerData: trainerData || null,
       emailStatus,
     };
   }
@@ -1574,7 +2003,7 @@ function createApp(options = {}) {
       const animalDesc = ANIMALS_MAP[animal] || animal;
       const powerDesc = POWERS_MAP[power] || power;
 
-      const prompt = `A cute chibi-style fictional creature inspired by a ${colorDesc} ${animalDesc} with ${powerDesc}. Friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design. High quality, vibrant.`;
+      const prompt = `A cute chibi-style fictional creature inspired by a ${colorDesc} ${animalDesc} with ${powerDesc}. Friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design. High quality, vibrant. Original character design only, do not include any existing copyrighted characters.`;
 
       const imageResp = await services.aiImage.images.generate({
         model: 'dall-e-3',
@@ -1675,47 +2104,54 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
         return res.status(402).json({ error: 'no_credits', remaining: 0 });
       }
 
+      const userTitle = sanitizeText(req.body.cardTitle, '', 30);
+      const userStyle = CARD_STYLES.has(req.body.cardStyle) ? req.body.cardStyle : DEFAULT_CARD_STYLE;
+
       const visionResp = await services.aiVision.chat.completions.create({
         model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: `You are a creative Pokemon card designer. Analyze the person's appearance, design an original cute creature inspired by it, and return only valid JSON with:
+            content: `You are a professional Pokemon trading card artist. Analyze the photo and return only valid JSON.
+
+Your job:
+1. Describe the person's appearance in EXTREME DETAIL for an anime portrait artist (hair color, hairstyle, eye color, skin tone, expression, clothing, accessories, pose, background scene if any).
+2. Create a DALL-E prompt that will generate an anime/Pokemon art style portrait of THIS SPECIFIC PERSON (not a creature). The portrait should look like official Pokemon Trainer card artwork — expressive, vibrant, Japanese anime style. The person must be clearly recognizable.
+3. Generate card text data.
+
+Return:
 {
-  "appearance":"Brief description",
-  "creature_prompt":"A detailed DALL-E prompt for a cute chibi-style original creature inspired by this person. Mention clean white background, digital art, Japanese anime creature style, big sparkling eyes, round proportions.",
-  "name":"CuteName",
-  "hp":70,
-  "type":"Fire",
-  "attack1":{"name":"Ember Pounce","damage":20,"desc":"Flip a coin. If heads, the opponent is now Burned."},
-  "attack2":{"name":"Flame Whirl","damage":40,"desc":"Discard 1 Energy card."},
-  "weakness":"Water",
-  "resistance":"Grass",
-  "retreatCost":1,
-  "flavor":"A playful creature that mirrors its trainer's spirit."
+  "appearance": "Brief summary of the person",
+  "portrait_prompt": "A detailed DALL-E prompt for an anime-style portrait of this person. Include: exact hair color/style, eye color, skin tone, expression, clothing details, pose. Style: Japanese anime illustration, Pokemon Trainer card artwork style, vibrant colors, clean linework, expressive features, professional digital art quality. Dynamic pose with personality.",
+  "title": "${userTitle || 'A suggested card title based on the photo scene or mood'}",
+  "effect": "A fun Pokemon card effect text (1-2 sentences) themed around the photo",
+  "flavor": "A short flavor text related to the moment captured",
+  "cardStyle": "${userStyle}"
 }`,
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'Analyze this person and design a creature inspired by their appearance.' },
+              { type: 'text', text: `Analyze this photo and create a Pokemon Trainer card portrait.${userTitle ? ` The card title should be: ${userTitle}` : ''} Card style: ${userStyle}.` },
               { type: 'image_url', image_url: { url: photo, detail: 'low' } },
             ],
           },
         ],
-        max_completion_tokens: 500,
+        max_completion_tokens: 600,
         response_format: { type: 'json_object' },
       });
 
       const visionData = safeJsonParse(visionResp.choices?.[0]?.message?.content, {});
+
+      const portraitPrompt = sanitizeText(
+        visionData.portrait_prompt,
+        'A young person illustrated in Japanese anime style, vibrant colors, clean linework, expressive eyes, trading card artwork style, professional digital art quality, dynamic pose, warm lighting. Original character only, do not include any copyrighted characters.',
+        1200
+      );
+
       const imageResp = await services.aiImage.images.generate({
         model: 'dall-e-3',
-        prompt:
-          sanitizeText(
-            visionData.creature_prompt,
-            'A cute chibi-style fictional creature with friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design.',
-            1200
-          ),
+        prompt: portraitPrompt,
         n: 1,
         size: '1024x1024',
         quality: 'standard',
@@ -1725,14 +2161,19 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
         throw new Error('Image generation returned no URL.');
       }
 
-      const cardData = normalizeCardData(visionData);
+      const trainerData = normalizeTrainerCardData({
+        title: userTitle || visionData.title,
+        effect: visionData.effect,
+        flavor: visionData.flavor,
+        cardStyle: userStyle,
+      });
       const displayName = sanitizeText(req.body.kidName, 'Pokemon Trainer', MAX_NAME_LENGTH);
       const response = await buildCardResponse({
         requestId: reservation.requestId,
         accountId: account.id,
         mode: 'photo',
         imageUrl,
-        cardData,
+        trainerData,
         displayName,
         email: normalizeEmail(req.body.email),
         fromPhoto: true,
@@ -1821,4 +2262,5 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
 module.exports = {
   createApp,
   normalizeCardData,
+  normalizeTrainerCardData,
 };
