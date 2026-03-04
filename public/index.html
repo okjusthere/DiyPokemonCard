@@ -1196,6 +1196,21 @@
             color: rgba(255, 215, 0, 0.82);
             text-decoration: none;
         }
+
+        .email-modal-actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .email-primary {
+            background: linear-gradient(135deg, #FFD700, #ff9500);
+            border: none;
+            color: #111827;
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -1254,6 +1269,32 @@
         </div>
     </div>
 
+    <!-- Email Card Modal -->
+    <div class="paywall-overlay" id="emailCardOverlay">
+        <div class="paywall-modal">
+            <div class="paywall-title">✉️ Email This Card</div>
+            <div class="paywall-subtitle">You can play for free first. We only ask for agreement when you actually send a card.</div>
+            <div class="account-panel">
+                <label for="emailCardName">Name on the card</label>
+                <input class="account-email-input" type="text" id="emailCardName" placeholder="Your name" maxlength="30">
+                <label for="emailCardInput" style="margin-top: 14px;">Send to email</label>
+                <input class="account-email-input" type="email" id="emailCardInput" placeholder="parent@email.com">
+                <div class="account-note">This email can also be used later to restore paid credits on another device.</div>
+                <div class="consent-group">
+                    <label class="consent-check">
+                        <input type="checkbox" id="emailCardLegalConsent">
+                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                    </label>
+                </div>
+                <div class="restore-status" id="emailCardStatus"></div>
+            </div>
+            <div class="email-modal-actions">
+                <button class="paywall-close" onclick="closeEmailModal()">Maybe Later</button>
+                <button class="btn-action email-primary" id="sendCardBtn" onclick="sendCurrentCardEmail()">Send My Card</button>
+            </div>
+        </div>
+    </div>
+
     <div class="hero">
         <h1>🎨 DIY Pokemon Card Maker</h1>
         <p>Create your very own AI-powered Pokemon trading card! ⚡</p>
@@ -1280,17 +1321,11 @@
                         <input type="text" id="kidName" placeholder="Your name" maxlength="30">
                     </div>
                     <div class="input-group">
-                        <label>Email (recommended)</label>
+                        <label>Email (optional)</label>
                         <input type="email" id="kidEmail" placeholder="parent@email.com">
                     </div>
                 </div>
-                <div class="input-hint">📧 We'll email your card if you want, and this email is also used to restore paid credits later.</div>
-                <div class="consent-group">
-                    <label class="consent-check">
-                        <input type="checkbox" id="designLegalConsent">
-                        <span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
-                    </label>
-                </div>
+                <div class="input-hint">✨ Generate first for free. If you love the card, you can email it to yourself later.</div>
             </div>
 
             <!-- Color -->
@@ -1516,6 +1551,7 @@
 
             <!-- Actions -->
             <div class="card-actions">
+                <button class="btn-action" id="btnEmailCard" onclick="openEmailModal()">✉️ Email This Card</button>
                 <button class="btn-action" onclick="createAnother()">🔄 Create Another Card!</button>
             </div>
         </div>
@@ -1543,6 +1579,7 @@
         const creations = [];
         let photoBase64 = null;
         let restoreAvailable = false;
+        let currentCardResult = null;
         let creditState = {
             id: '',
             email: '',
@@ -1567,6 +1604,7 @@
         const photoInput = document.getElementById('photoInput');
         const previewContainer = document.getElementById('photoPreviewContainer');
         const previewImg = document.getElementById('photoPreview');
+        const emailCardOverlay = document.getElementById('emailCardOverlay');
 
         function currentMode() {
             return document.getElementById('modePhoto').classList.contains('active') ? 'photo' : 'design';
@@ -1589,12 +1627,21 @@
         }
 
         function syncEmailInputs(value, sourceId = '') {
-            ['kidEmail', 'photoKidEmail', 'paywallEmail'].forEach((id) => {
+            ['kidEmail', 'photoKidEmail', 'paywallEmail', 'emailCardInput'].forEach((id) => {
                 const input = document.getElementById(id);
-                if (!input) return;
-                if (id === sourceId) return;
+                if (!input || id === sourceId) return;
                 if (!input.value || value) input.value = value;
             });
+        }
+
+        function updateEmailActionButton() {
+            const btn = document.getElementById('btnEmailCard');
+            if (!currentCardResult) {
+                btn.style.display = 'none';
+                return;
+            }
+            btn.style.display = '';
+            btn.textContent = currentCardResult.emailStatus === 'sent' ? '✉️ Email Again' : '✉️ Email This Card';
         }
 
         function applyAccountState(account = {}) {
@@ -1613,12 +1660,13 @@
             if (creditState.displayName) {
                 if (!document.getElementById('kidName').value) document.getElementById('kidName').value = creditState.displayName;
                 if (!document.getElementById('photoKidName').value) document.getElementById('photoKidName').value = creditState.displayName;
+                if (!document.getElementById('emailCardName').value) document.getElementById('emailCardName').value = creditState.displayName;
             }
 
             if (creditState.consents.termsAccepted && creditState.consents.privacyAccepted) {
-                document.getElementById('designLegalConsent').checked = true;
                 document.getElementById('photoLegalConsent').checked = true;
                 document.getElementById('paywallLegalConsent').checked = true;
+                document.getElementById('emailCardLegalConsent').checked = true;
             }
             if (creditState.consents.photoParentConsent) {
                 document.getElementById('photoParentConsent').checked = true;
@@ -1657,15 +1705,6 @@
             }
         }
 
-        function showPaywall() {
-            document.getElementById('paywallEmail').value = document.getElementById('paywallEmail').value || creditState.email || '';
-            document.getElementById('paywallOverlay').classList.add('show');
-        }
-
-        function hidePaywall() {
-            document.getElementById('paywallOverlay').classList.remove('show');
-        }
-
         function getModeProfile(mode = currentMode()) {
             if (mode === 'photo') {
                 return {
@@ -1680,8 +1719,8 @@
             return {
                 displayName: document.getElementById('kidName').value.trim(),
                 email: document.getElementById('kidEmail').value.trim() || document.getElementById('paywallEmail').value.trim(),
-                acceptTerms: document.getElementById('designLegalConsent').checked,
-                acceptPrivacy: document.getElementById('designLegalConsent').checked,
+                acceptTerms: false,
+                acceptPrivacy: false,
                 photoParentConsent: false,
             };
         }
@@ -1698,19 +1737,47 @@
             return data;
         }
 
+        function showPaywall() {
+            const modeProfile = getModeProfile();
+            document.getElementById('paywallEmail').value = document.getElementById('paywallEmail').value || modeProfile.email || creditState.email || '';
+            document.getElementById('paywallOverlay').classList.add('show');
+        }
+
+        function hidePaywall() {
+            document.getElementById('paywallOverlay').classList.remove('show');
+        }
+
+        function openEmailModal() {
+            if (!currentCardResult) return;
+            const modeProfile = getModeProfile(currentCardResult.mode);
+            document.getElementById('emailCardName').value = currentCardResult.displayName || modeProfile.displayName || creditState.displayName || '';
+            document.getElementById('emailCardInput').value = modeProfile.email || creditState.email || '';
+            document.getElementById('emailCardLegalConsent').checked = creditState.consents.termsAccepted && creditState.consents.privacyAccepted;
+            document.getElementById('emailCardStatus').textContent = '';
+            emailCardOverlay.classList.add('show');
+        }
+
+        function closeEmailModal() {
+            emailCardOverlay.classList.remove('show');
+        }
+
         async function checkout(plan) {
             try {
                 const modeProfile = getModeProfile();
-                const legalAccepted = modeProfile.acceptTerms || document.getElementById('paywallLegalConsent').checked;
+                const legalAccepted = document.getElementById('paywallLegalConsent').checked || (currentMode() === 'photo' && modeProfile.acceptTerms);
                 const profile = {
-                    ...modeProfile,
+                    displayName: modeProfile.displayName,
                     email: modeProfile.email,
                     acceptTerms: legalAccepted,
                     acceptPrivacy: legalAccepted,
+                    photoParentConsent: currentMode() === 'photo' ? modeProfile.photoParentConsent : false,
                 };
 
                 if (!profile.email) {
                     throw new Error('Enter your email first so paid credits can be restored later.');
+                }
+                if (!legalAccepted) {
+                    throw new Error('Please agree to the Terms and Privacy Policy before checkout.');
                 }
 
                 await persistAccountProfile(profile);
@@ -1802,8 +1869,8 @@
         }
 
         function switchMode(mode) {
-            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.mode-tab').forEach((tab) => tab.classList.remove('active'));
+            document.querySelectorAll('.mode-content').forEach((content) => content.classList.remove('active'));
             if (mode === 'design') {
                 document.getElementById('tabDesign').classList.add('active');
                 document.getElementById('modeDesign').classList.add('active');
@@ -1817,13 +1884,7 @@
         }
 
         function updateGenerateButtons() {
-            document.getElementById('btnGenerate').disabled = !(
-                choices.color &&
-                choices.animal &&
-                choices.power &&
-                document.getElementById('designLegalConsent').checked
-            );
-
+            document.getElementById('btnGenerate').disabled = !(choices.color && choices.animal && choices.power);
             document.getElementById('btnGeneratePhoto').disabled = !(
                 photoBase64 &&
                 document.getElementById('photoLegalConsent').checked &&
@@ -1843,10 +1904,10 @@
             if (e.target.files.length) handlePhotoFile(e.target.files[0]);
         });
 
-        ['kidEmail', 'photoKidEmail', 'paywallEmail'].forEach((id) => {
+        ['kidEmail', 'photoKidEmail', 'paywallEmail', 'emailCardInput'].forEach((id) => {
             document.getElementById(id).addEventListener('input', (event) => syncEmailInputs(event.target.value, id));
         });
-        ['designLegalConsent', 'photoLegalConsent', 'photoParentConsent', 'paywallLegalConsent'].forEach((id) => {
+        ['photoLegalConsent', 'photoParentConsent', 'paywallLegalConsent'].forEach((id) => {
             document.getElementById(id).addEventListener('change', updateGenerateButtons);
         });
 
@@ -1861,7 +1922,7 @@
             }
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
                     const maxSize = 512;
@@ -1887,7 +1948,7 @@
                     hideMessage();
                     updateGenerateButtons();
                 };
-                img.src = e.target.result;
+                img.src = event.target.result;
             };
             reader.readAsDataURL(file);
         }
@@ -1902,6 +1963,10 @@
 
         function updateEmailStatus(status, email) {
             const emailStatus = document.getElementById('resultEmailStatus');
+            if (status === 'not_requested') {
+                emailStatus.textContent = '📧 Love it? Tap “Email This Card” to send it to yourself.';
+                return;
+            }
             if (!email) {
                 emailStatus.textContent = '';
                 return;
@@ -1912,8 +1977,6 @@
                 emailStatus.textContent = '📧 Card created, but email delivery failed this time.';
             } else if (status === 'not_configured') {
                 emailStatus.textContent = '📧 Card created, but email delivery is not configured yet.';
-            } else {
-                emailStatus.textContent = '';
             }
         }
 
@@ -1931,6 +1994,70 @@
             badge.appendChild(strong);
             badge.appendChild(document.createTextNode(text));
             badge.style.display = 'block';
+        }
+
+        async function sendCurrentCardEmail() {
+            const status = document.getElementById('emailCardStatus');
+            const sendButton = document.getElementById('sendCardBtn');
+            status.textContent = '';
+
+            try {
+                if (!currentCardResult) throw new Error('Generate a card first.');
+
+                const email = document.getElementById('emailCardInput').value.trim();
+                const displayName = document.getElementById('emailCardName').value.trim();
+                const legalAccepted = document.getElementById('emailCardLegalConsent').checked;
+
+                if (!email) throw new Error('Enter the email that should receive this card.');
+                if (!legalAccepted) throw new Error('Please agree to the Terms and Privacy Policy before sending.');
+
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending...';
+
+                const resp = await fetch('/api/card/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        generationId: currentCardResult.generationId,
+                        email,
+                        displayName,
+                        acceptTerms: legalAccepted,
+                        acceptPrivacy: legalAccepted,
+                        photoParentConsent: currentCardResult.mode === 'photo' ? document.getElementById('photoParentConsent').checked : false,
+                    }),
+                });
+                const data = await resp.json();
+                if (!handleApiResponse(resp, data)) {
+                    throw new Error('You need credits before sending more cards.');
+                }
+                if (!resp.ok) throw new Error(data.error || 'Unable to send this card.');
+
+                currentCardResult.emailStatus = data.emailStatus;
+                currentCardResult.displayName = displayName || currentCardResult.displayName;
+                syncEmailInputs(email, 'emailCardInput');
+                updateEmailStatus(data.emailStatus, email);
+                updateEmailActionButton();
+                status.textContent = data.emailStatus === 'sent'
+                    ? `Sent to ${email}!`
+                    : data.emailStatus === 'not_configured'
+                        ? 'Email delivery is not configured on this app yet.'
+                        : 'The card could not be emailed this time.';
+
+                if (displayName) {
+                    document.getElementById('kidName').value = displayName;
+                    document.getElementById('photoKidName').value = displayName;
+                    document.getElementById('cardCreator').textContent = displayName;
+                }
+
+                if (data.emailStatus === 'sent') {
+                    setTimeout(() => closeEmailModal(), 900);
+                }
+            } catch (err) {
+                status.textContent = err.message;
+            } finally {
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send My Card';
+            }
         }
 
         async function generateFromPhoto() {
@@ -1970,7 +2097,7 @@
                 if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
 
                 loading.classList.remove('show');
-                renderCard({ ...data, kidName: profile.displayName });
+                renderCard({ ...data, kidName: profile.displayName, mode: 'photo' });
                 result.classList.add('show');
 
                 if (data.appearance) {
@@ -1992,7 +2119,7 @@
 
         function pick(type, val, btn) {
             choices[type] = val;
-            btn.parentElement.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+            btn.parentElement.querySelectorAll('.opt-btn').forEach((b) => b.classList.remove('selected'));
             btn.classList.add('selected');
             updateGenerateButtons();
         }
@@ -2001,6 +2128,16 @@
             const { imageUrl, name, cardData, kidName } = data;
             const card = document.getElementById('pokemonCard');
             const type = cardData.type || 'Normal';
+
+            currentCardResult = {
+                generationId: data.generationId,
+                imageUrl,
+                name,
+                cardData,
+                displayName: kidName || 'Trainer',
+                mode: data.mode || currentMode(),
+                emailStatus: data.emailStatus || 'not_requested',
+            };
 
             card.setAttribute('data-type', type);
             document.getElementById('cardName').textContent = name;
@@ -2031,6 +2168,7 @@
             document.getElementById('cardRetreat').textContent = '⚪'.repeat(cardData.retreatCost || 1);
             document.getElementById('cardFlavor').textContent = cardData.flavor || 'A creature born from pure imagination.';
             document.getElementById('cardId').textContent = `YBP-${Date.now().toString().slice(-4)}`;
+            updateEmailActionButton();
         }
 
         function renderEnergy(containerId, type, count) {
@@ -2065,9 +2203,6 @@
                     body: JSON.stringify({
                         ...choices,
                         kidName: profile.displayName,
-                        email: profile.email,
-                        acceptTerms: profile.acceptTerms,
-                        acceptPrivacy: profile.acceptPrivacy,
                     }),
                 });
                 const data = await resp.json();
@@ -2080,10 +2215,10 @@
                 if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
 
                 loading.classList.remove('show');
-                renderCard({ ...data, kidName: profile.displayName });
+                renderCard({ ...data, kidName: profile.displayName, mode: 'design' });
                 result.classList.add('show');
 
-                updateEmailStatus(data.emailStatus, profile.email);
+                updateEmailStatus('not_requested', profile.email);
                 celebrate();
                 creations.push({ name: data.name, url: data.imageUrl, creator: profile.displayName });
                 updateGallery();
@@ -2100,10 +2235,14 @@
             document.getElementById('cardResult').classList.remove('show');
             const badge = document.getElementById('appearanceBadge');
             if (badge) badge.style.display = 'none';
+            currentCardResult = null;
             choices.color = null;
             choices.animal = null;
             choices.power = null;
-            document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('.opt-btn').forEach((button) => button.classList.remove('selected'));
+            document.getElementById('resultEmailStatus').textContent = '';
+            closeEmailModal();
+            updateEmailActionButton();
             updateGenerateButtons();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -2170,6 +2309,7 @@
 
         fetchSession();
         updateGenerateButtons();
+        updateEmailActionButton();
     </script>
 
 </body>

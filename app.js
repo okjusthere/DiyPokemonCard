@@ -322,6 +322,18 @@ function setupDatabase(db) {
       FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS generation_results (
+      request_id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      card_data_json TEXT NOT NULL,
+      display_name TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY(request_id) REFERENCES generation_attempts(request_id) ON DELETE CASCADE,
+      FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS checkout_sessions (
       stripe_session_id TEXT PRIMARY KEY,
       account_id TEXT NOT NULL,
@@ -348,6 +360,7 @@ function setupDatabase(db) {
     CREATE INDEX IF NOT EXISTS idx_sessions_account_id ON sessions(account_id);
     CREATE INDEX IF NOT EXISTS idx_credit_ledger_account_id ON credit_ledger(account_id);
     CREATE INDEX IF NOT EXISTS idx_generation_attempts_account_id ON generation_attempts(account_id);
+    CREATE INDEX IF NOT EXISTS idx_generation_results_account_id ON generation_results(account_id);
     CREATE INDEX IF NOT EXISTS idx_checkout_sessions_account_id ON checkout_sessions(account_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_account_id ON auth_tokens(account_id);
   `);
@@ -436,6 +449,19 @@ function createStatements(db) {
     insertAttempt: db.prepare(`
       INSERT INTO generation_attempts (request_id, account_id, mode, charge_source, status)
       VALUES (?, ?, ?, ?, 'reserved')
+    `),
+    upsertGenerationResult: db.prepare(`
+      INSERT INTO generation_results (request_id, account_id, mode, image_url, card_data_json, display_name)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(request_id) DO UPDATE SET
+        image_url = excluded.image_url,
+        card_data_json = excluded.card_data_json,
+        display_name = excluded.display_name
+    `),
+    selectGenerationResultForAccount: db.prepare(`
+      SELECT request_id, account_id, mode, image_url, card_data_json, display_name
+      FROM generation_results
+      WHERE request_id = ? AND account_id = ?
     `),
     markAttemptCompleted: db.prepare(`
       UPDATE generation_attempts
@@ -763,6 +789,21 @@ function createServices({ db, statements, env }) {
     return refundReservedCreditTransaction(requestId);
   }
 
+  function storeGenerationResult(accountId, requestId, mode, imageUrl, cardData, displayName) {
+    statements.upsertGenerationResult.run(
+      requestId,
+      accountId,
+      mode,
+      imageUrl,
+      JSON.stringify(cardData),
+      sanitizeText(displayName, 'Pokemon Trainer', MAX_NAME_LENGTH)
+    );
+  }
+
+  function getGenerationResult(accountId, requestId) {
+    return statements.selectGenerationResultForAccount.get(requestId, accountId);
+  }
+
   const finalizeCheckoutTransaction = db.transaction((checkoutSession) => {
     const stripeSessionId = checkoutSession.id;
     const creditsToAdd = Number.parseInt(checkoutSession.metadata?.credits, 10) || 0;
@@ -963,6 +1004,8 @@ function createServices({ db, statements, env }) {
     reserveCredit,
     completeReservedCredit,
     refundReservedCredit,
+    storeGenerationResult,
+    getGenerationResult,
     finalizeCheckoutSession,
     sendRestoreEmail,
     maybeSendCardEmail,
@@ -1470,7 +1513,9 @@ function createApp(options = {}) {
     }
   });
 
-  async function buildCardResponse({ imageUrl, cardData, displayName, email, fromPhoto }) {
+  async function buildCardResponse({ requestId, accountId, mode, imageUrl, cardData, displayName, email, fromPhoto }) {
+    services.storeGenerationResult(accountId, requestId, mode, imageUrl, cardData, displayName);
+
     let emailStatus = 'not_requested';
 
     if (email) {
@@ -1488,6 +1533,7 @@ function createApp(options = {}) {
     }
 
     return {
+      generationId: requestId,
       imageUrl,
       name: cardData.name,
       cardData,
@@ -1504,12 +1550,8 @@ function createApp(options = {}) {
 
     try {
       const account = services.syncAccountProfile(req.account.id, {
-        email: req.body.email,
         displayName: req.body.kidName,
-        acceptTerms: !!req.body.acceptTerms,
-        acceptPrivacy: !!req.body.acceptPrivacy,
       });
-      services.assertRequiredConsents(account);
 
       const identityKey = `${account.id}:${req.ip}`;
       if (!services.checkAIRate(identityKey)) {
@@ -1578,10 +1620,13 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
       const cardData = normalizeCardData(rawCardData);
       const displayName = sanitizeText(req.body.kidName, 'Pokemon Trainer', MAX_NAME_LENGTH);
       const response = await buildCardResponse({
+        requestId: reservation.requestId,
+        accountId: account.id,
+        mode: 'design',
         imageUrl,
         cardData,
         displayName,
-        email: normalizeEmail(req.body.email),
+        email: '',
         fromPhoto: false,
       });
 
@@ -1683,6 +1728,9 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
       const cardData = normalizeCardData(visionData);
       const displayName = sanitizeText(req.body.kidName, 'Pokemon Trainer', MAX_NAME_LENGTH);
       const response = await buildCardResponse({
+        requestId: reservation.requestId,
+        accountId: account.id,
+        mode: 'photo',
         imageUrl,
         cardData,
         displayName,
@@ -1704,6 +1752,59 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
       }
       console.error('Photo Pokemon Create error:', error.message);
       const friendly = toFriendlyApiError(error, 'Failed to generate your photo card. No credit was used.');
+      res.status(friendly.status).json(friendly.body);
+    }
+  });
+
+  app.post('/api/card/email', async (req, res) => {
+    try {
+      const generationId = sanitizeText(req.body.generationId, '', 64);
+      if (!generationId) {
+        throw createPublicError('Missing card reference.', 400, 'missing_generation');
+      }
+
+      const stored = services.getGenerationResult(req.account.id, generationId);
+      if (!stored) {
+        throw createPublicError('Card not found. Please generate it again first.', 404, 'generation_not_found');
+      }
+
+      const account = services.syncAccountProfile(req.account.id, {
+        email: req.body.email,
+        displayName: req.body.displayName || stored.display_name,
+        acceptTerms: !!req.body.acceptTerms,
+        acceptPrivacy: !!req.body.acceptPrivacy,
+        photoParentConsent: stored.mode === 'photo' ? !!req.body.photoParentConsent : false,
+      });
+      services.assertRequiredConsents(account, { requirePhotoConsent: stored.mode === 'photo' });
+      if (!account.email) {
+        throw createPublicError('Enter an email address first.', 400, 'email_required');
+      }
+
+      const cardData = normalizeCardData(safeJsonParse(stored.card_data_json, {}));
+      const displayName = sanitizeText(
+        req.body.displayName || stored.display_name || account.displayName,
+        'Pokemon Trainer',
+        MAX_NAME_LENGTH
+      );
+      const emailResult = await buildCardResponse({
+        requestId: stored.request_id,
+        accountId: req.account.id,
+        mode: stored.mode,
+        imageUrl: stored.image_url,
+        cardData,
+        displayName,
+        email: account.email,
+        fromPhoto: stored.mode === 'photo',
+      });
+
+      res.json({
+        emailStatus: emailResult.emailStatus,
+        generationId: stored.request_id,
+        account: services.getAccountById(account.id),
+      });
+    } catch (error) {
+      console.error('Card email error:', error.message);
+      const friendly = toFriendlyApiError(error, 'Unable to email this card right now.');
       res.status(friendly.status).json(friendly.body);
     }
   });
