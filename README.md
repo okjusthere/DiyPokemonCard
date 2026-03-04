@@ -55,4 +55,5 @@ npm test
 - Paid credits are attached to the account email and can be restored with an emailed sign-in link.
 - Failed AI generations are refunded automatically before the response returns an error.
 - Stripe webhook fulfillment is idempotent to prevent duplicate credit grants.
+- Stripe webhook endpoint is `/api/webhook`; subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.async_payment_failed`.
 - Photo uploads are processed transiently and are not intentionally stored after request completion.

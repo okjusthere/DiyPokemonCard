@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createApp, normalizeCardData } = require('../app');
+const { createApp, normalizeCardData, shouldFinalizeCheckoutForEvent } = require('../app');
 
 function createFakeRes() {
   const values = [];
@@ -149,4 +149,23 @@ test('normalizeCardData clamps unsafe values', () => {
   assert.equal(card.resistance, 'Normal');
   assert.equal(card.retreatCost, 4);
   assert.equal(card.flavor.length <= 160, true);
+});
+
+test('shouldFinalizeCheckoutForEvent handles async payment states safely', () => {
+  assert.equal(
+    shouldFinalizeCheckoutForEvent('checkout.session.completed', { payment_status: 'paid' }),
+    true
+  );
+  assert.equal(
+    shouldFinalizeCheckoutForEvent('checkout.session.completed', { payment_status: 'unpaid' }),
+    false
+  );
+  assert.equal(
+    shouldFinalizeCheckoutForEvent('checkout.session.async_payment_succeeded', { payment_status: 'unpaid' }),
+    true
+  );
+  assert.equal(
+    shouldFinalizeCheckoutForEvent('checkout.session.async_payment_failed', { payment_status: 'unpaid' }),
+    false
+  );
 });

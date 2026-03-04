@@ -297,6 +297,15 @@ function parseTrustProxySetting(value) {
   return value;
 }
 
+function shouldFinalizeCheckoutForEvent(eventType, checkoutSession) {
+  if (!checkoutSession || typeof checkoutSession !== 'object') return false;
+  if (eventType === 'checkout.session.async_payment_succeeded') return true;
+  if (eventType === 'checkout.session.completed') {
+    return checkoutSession.payment_status === 'paid';
+  }
+  return false;
+}
+
 function setupDatabase(db) {
   try {
     db.pragma('journal_mode = WAL');
@@ -518,6 +527,13 @@ function createStatements(db) {
       UPDATE checkout_sessions
       SET status = 'completed', email = ?, completed_at = datetime('now')
       WHERE stripe_session_id = ?
+    `),
+    markCheckoutStatus: db.prepare(`
+      UPDATE checkout_sessions
+      SET
+        status = ?,
+        email = COALESCE(?, email)
+      WHERE stripe_session_id = ? AND status <> 'completed'
     `),
     insertAuthToken: db.prepare(`
       INSERT INTO auth_tokens (id, account_id, email, token_hash, expires_at)
@@ -872,6 +888,11 @@ function createServices({ db, statements, env }) {
     return finalizeCheckoutTransaction(checkoutSession);
   }
 
+  function markCheckoutSessionStatus({ stripeSessionId, email, status }) {
+    if (!stripeSessionId || !status) return;
+    statements.markCheckoutStatus.run(status, normalizeEmail(email) || null, stripeSessionId);
+  }
+
   function createRestoreToken(account) {
     const tokenId = createId('restore');
     const secret = crypto.randomBytes(32).toString('hex');
@@ -1034,6 +1055,7 @@ function createServices({ db, statements, env }) {
     storeGenerationResult,
     getGenerationResult,
     finalizeCheckoutSession,
+    markCheckoutSessionStatus,
     sendRestoreEmail,
     maybeSendCardEmail,
     getAccountById,
@@ -1789,13 +1811,26 @@ function createApp(options = {}) {
     }
 
     try {
-      if (event.type === 'checkout.session.completed') {
-        const result = services.finalizeCheckoutSession(event.data.object);
+      const checkoutSession = event.data?.object;
+      if (shouldFinalizeCheckoutForEvent(event.type, checkoutSession)) {
+        const result = services.finalizeCheckoutSession(checkoutSession);
         if (!result.alreadyProcessed) {
           console.log(
-            `   💰 Payment confirmed: +${event.data.object.metadata?.credits || 0} credits for account ${event.data.object.metadata?.accountId}`
+            `   💰 Payment confirmed: +${checkoutSession.metadata?.credits || 0} credits for account ${checkoutSession.metadata?.accountId}`
           );
         }
+      } else if (event.type === 'checkout.session.completed' && checkoutSession?.id) {
+        services.markCheckoutSessionStatus({
+          stripeSessionId: checkoutSession.id,
+          email: checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '',
+          status: 'awaiting_async_payment',
+        });
+      } else if (event.type === 'checkout.session.async_payment_failed' && checkoutSession?.id) {
+        services.markCheckoutSessionStatus({
+          stripeSessionId: checkoutSession.id,
+          email: checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '',
+          status: 'failed_async_payment',
+        });
       }
       res.json({ received: true });
     } catch (error) {
@@ -2286,4 +2321,5 @@ module.exports = {
   createApp,
   normalizeCardData,
   normalizeTrainerCardData,
+  shouldFinalizeCheckoutForEvent,
 };

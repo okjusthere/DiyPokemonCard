@@ -17,7 +17,7 @@ Pick a color, animal, and superpower. AI generates a completely unique creature 
 ## Frequently Asked Questions
 
 ### Is it free?
-Yes. Your first card is completely free with no signup required. After that, affordable card packs are available starting from $0.99 for a 1-card pack, with volume discounts up to 10 cards.
+Yes. Your first card is completely free with no signup required. After that, affordable card packs are available starting from $1.49 for a 1-card pack, with volume discounts up to 10 cards.
 
 ### How is this different from pokecardmaker.net or pokecardgenerator.com?
 Those sites are manual template editors where you upload your own image and fill in stats by hand. DIY Poke Card Maker uses AI to generate original anime-style artwork and auto-generate balanced card stats. You just pick options or upload a photo and AI does the rest.
