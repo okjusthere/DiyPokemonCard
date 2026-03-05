@@ -2054,7 +2054,7 @@ function createApp(options = {}) {
       const prompt = `A cute chibi-style fictional creature inspired by a ${colorDesc} ${animalDesc} with ${powerDesc}. Friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design. High quality, vibrant. Original character design only, do not include any existing copyrighted characters.`;
 
       const imageResp = await services.aiImage.images.generate({
-        model: 'dall-e-3',
+        model: env.AZURE_IMAGE_MODEL || 'dall-e-3',
         prompt,
         n: 1,
         size: '1024x1024',
@@ -2066,7 +2066,7 @@ function createApp(options = {}) {
       }
 
       const cardResp = await services.aiChat.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: env.AZURE_GPT_MINI_MODEL || 'gpt-5-mini',
         messages: [
           {
             role: 'system',
@@ -2156,7 +2156,7 @@ Rules: name max 12 chars, HP 40-90, damage 10-50, descriptions short and fun, ty
       const userStyle = CARD_STYLES.has(req.body.cardStyle) ? req.body.cardStyle : DEFAULT_CARD_STYLE;
 
       const visionResp = await services.aiVision.chat.completions.create({
-        model: 'gpt-4o',
+        model: env.AZURE_GPT_MAIN_MODEL || 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -2198,7 +2198,7 @@ Return:
       );
 
       const imageResp = await services.aiImage.images.generate({
-        model: 'dall-e-3',
+        model: env.AZURE_IMAGE_MODEL || 'dall-e-3',
         prompt: portraitPrompt,
         n: 1,
         size: '1024x1024',
