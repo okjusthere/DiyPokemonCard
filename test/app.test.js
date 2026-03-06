@@ -4,7 +4,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { createApp, normalizeCardData, shouldFinalizeCheckoutForEvent } = require('../app');
+const {
+  createApp,
+  getCheckoutVerificationState,
+  normalizeCardData,
+  shouldFinalizeCheckoutForEvent,
+} = require('../app');
 
 function createFakeRes() {
   const values = [];
@@ -168,4 +173,12 @@ test('shouldFinalizeCheckoutForEvent handles async payment states safely', () =>
     shouldFinalizeCheckoutForEvent('checkout.session.async_payment_failed', { payment_status: 'unpaid' }),
     false
   );
+});
+
+test('getCheckoutVerificationState reflects stored and Stripe checkout status safely', () => {
+  assert.equal(getCheckoutVerificationState({ payment_status: 'paid' }, null), 'credited');
+  assert.equal(getCheckoutVerificationState({ status: 'complete', payment_status: 'unpaid' }, null), 'pending');
+  assert.equal(getCheckoutVerificationState({ status: 'expired', payment_status: 'unpaid' }, null), 'failed');
+  assert.equal(getCheckoutVerificationState(null, { status: 'completed' }), 'credited');
+  assert.equal(getCheckoutVerificationState(null, { status: 'failed_async_payment' }), 'failed');
 });

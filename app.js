@@ -306,6 +306,16 @@ function shouldFinalizeCheckoutForEvent(eventType, checkoutSession) {
   return false;
 }
 
+function getCheckoutVerificationState(checkoutSession, storedSession) {
+  if (storedSession?.status === 'completed') return 'credited';
+  if (storedSession?.status === 'failed_async_payment') return 'failed';
+  if (!checkoutSession || typeof checkoutSession !== 'object') return 'unknown';
+  if (checkoutSession.payment_status === 'paid') return 'credited';
+  if (checkoutSession.status === 'expired') return 'failed';
+  if (checkoutSession.status === 'complete') return 'pending';
+  return 'pending';
+}
+
 function setupDatabase(db) {
   try {
     db.pragma('journal_mode = WAL');
@@ -893,6 +903,10 @@ function createServices({ db, statements, env }) {
     statements.markCheckoutStatus.run(status, normalizeEmail(email) || null, stripeSessionId);
   }
 
+  function getCheckoutSessionRecord(stripeSessionId) {
+    return statements.selectCheckoutSession.get(stripeSessionId);
+  }
+
   function createRestoreToken(account) {
     const tokenId = createId('restore');
     const secret = crypto.randomBytes(32).toString('hex');
@@ -1056,6 +1070,7 @@ function createServices({ db, statements, env }) {
     getGenerationResult,
     finalizeCheckoutSession,
     markCheckoutSessionStatus,
+    getCheckoutSessionRecord,
     sendRestoreEmail,
     maybeSendCardEmail,
     getAccountById,
@@ -1955,7 +1970,7 @@ function createApp(options = {}) {
           },
         ],
         mode: 'payment',
-        success_url: `${baseUrl}/?payment=success`,
+        success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${baseUrl}/?payment=cancelled`,
         client_reference_id: account.id,
         customer_email: account.email,
@@ -1980,6 +1995,55 @@ function createApp(options = {}) {
     } catch (error) {
       console.error('Checkout error:', error.message);
       const friendly = toFriendlyApiError(error, 'Failed to create the checkout session.');
+      res.status(friendly.status).json(friendly.body);
+    }
+  });
+
+  app.get('/api/checkout/verify', async (req, res) => {
+    if (!services.stripe) {
+      return res.status(503).json({ error: 'Payment system not configured.' });
+    }
+
+    try {
+      const sessionId = sanitizeText(req.query.session_id, '', 128);
+      if (!sessionId) {
+        throw createPublicError('Missing checkout session ID.', 400, 'missing_session_id');
+      }
+
+      const checkoutSession = await services.stripe.checkout.sessions.retrieve(sessionId);
+      const storedSession = services.getCheckoutSessionRecord(sessionId);
+      const checkoutAccountId = sanitizeText(
+        checkoutSession.metadata?.accountId || storedSession?.account_id || '',
+        '',
+        64
+      );
+
+      let verificationStatus = getCheckoutVerificationState(checkoutSession, storedSession);
+      let finalizedAccount = null;
+
+      if (checkoutSession.payment_status === 'paid') {
+        const result = services.finalizeCheckoutSession(checkoutSession);
+        finalizedAccount = result.account;
+        verificationStatus = 'credited';
+      } else if (checkoutSession.status === 'complete' && storedSession?.status !== 'failed_async_payment') {
+        services.markCheckoutSessionStatus({
+          stripeSessionId: sessionId,
+          email: checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '',
+          status: 'awaiting_async_payment',
+        });
+      }
+
+      const currentAccount = services.getAccountById(req.account.id);
+      const accountMatchesSession = checkoutAccountId && checkoutAccountId === req.account.id;
+
+      res.json({
+        verificationStatus,
+        account: accountMatchesSession ? finalizedAccount || services.getAccountById(checkoutAccountId) : currentAccount,
+        creditedToCurrentSession: !!accountMatchesSession,
+      });
+    } catch (error) {
+      console.error('Checkout verification failed:', error.message);
+      const friendly = toFriendlyApiError(error, 'Unable to verify this checkout session right now.');
       res.status(friendly.status).json(friendly.body);
     }
   });
@@ -2319,6 +2383,7 @@ Return:
 
 module.exports = {
   createApp,
+  getCheckoutVerificationState,
   normalizeCardData,
   normalizeTrainerCardData,
   shouldFinalizeCheckoutForEvent,

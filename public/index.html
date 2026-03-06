@@ -1962,6 +1962,18 @@
             }
         }
 
+        async function verifyCheckoutSession(sessionId) {
+            const resp = await fetch(`/api/checkout/verify?session_id=${encodeURIComponent(sessionId)}`);
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new Error(data.error || 'Unable to verify your payment yet.');
+            }
+            if (data.account) {
+                applyAccountState(data.account);
+            }
+            return data;
+        }
+
         function getModeProfile(mode = currentMode()) {
             if (mode === 'photo') {
                 return {
@@ -2086,10 +2098,35 @@
             const clean = () => window.history.replaceState({}, '', window.location.pathname);
 
             if (params.get('payment') === 'success') {
-                clean();
                 setTimeout(async () => {
-                    await fetchSession();
-                    showMessage('🎉 Payment confirmed. Your credits are ready to use.', 'success');
+                    try {
+                        const sessionId = params.get('session_id');
+                        if (sessionId) {
+                            const verification = await verifyCheckoutSession(sessionId);
+                            if (verification.verificationStatus === 'credited' && !verification.creditedToCurrentSession) {
+                                showMessage('Payment was verified, but this browser is not signed into the credited account yet. Use the restore link with your purchase email.');
+                            } else if (verification.verificationStatus === 'credited') {
+                                showMessage('🎉 Payment confirmed. Your credits are ready to use.', 'success');
+                            } else if (verification.verificationStatus === 'pending') {
+                                await fetchSession();
+                                showMessage('Payment received and is still processing. Your credits should appear shortly.', 'success');
+                            } else if (verification.verificationStatus === 'failed') {
+                                await fetchSession();
+                                showMessage('Payment did not complete, so credits were not added.');
+                            } else {
+                                await fetchSession();
+                                showMessage('Payment return detected. Refreshing your credits now.', 'success');
+                            }
+                        } else {
+                            await fetchSession();
+                            showMessage('Payment return detected. Refreshing your credits now.', 'success');
+                        }
+                    } catch (error) {
+                        await fetchSession();
+                        showMessage(`Payment return detected, but verification is still pending. ${error.message}`);
+                    } finally {
+                        clean();
+                    }
                     setTimeout(() => hideMessage(), 5000);
                 }, 400);
                 return;
