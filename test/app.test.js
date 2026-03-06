@@ -125,6 +125,33 @@ test('checkout finalization is idempotent and increases paid credits once', () =
   }
 });
 
+test('checkout finalization can recover a purchase when the original account record is missing', () => {
+  const harness = createTestApp();
+  const services = harness.app.locals.services;
+
+  try {
+    const result = services.finalizeCheckoutSession({
+      id: 'cs_test_recovery',
+      metadata: {
+        accountId: 'acct_missing',
+        credits: '5',
+        plan: 'pack5',
+        email: 'recover@example.com',
+      },
+      customer_details: {
+        email: 'recover@example.com',
+      },
+    });
+
+    assert.equal(result.alreadyProcessed, false);
+    assert.equal(result.account.email, 'recover@example.com');
+    assert.equal(result.account.paidCredits, 5);
+    assert.equal(result.account.totalCredits, 5);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('normalizeCardData clamps unsafe values', () => {
   const card = normalizeCardData({
     name: 'WayTooLongPokemonName',

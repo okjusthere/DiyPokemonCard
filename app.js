@@ -684,18 +684,52 @@ function createServices({ db, statements, env }) {
     return hydrateAccount(statements.selectAccountByEmail.get(normalizeEmail(email)));
   }
 
-  function createGuestAccount() {
+  function createAccountRecord({
+    email = null,
+    displayName = null,
+    promoCreditsRemaining = 0,
+    termsAcceptedAt = null,
+    privacyAcceptedAt = null,
+    photoParentConsentAt = null,
+  } = {}) {
     const accountId = createId('acct');
     statements.insertAccount.run({
       id: accountId,
-      email: null,
-      display_name: null,
-      promo_credits_remaining: 1,
-      terms_accepted_at: null,
-      privacy_accepted_at: null,
-      photo_parent_consent_at: null,
+      email: email || null,
+      display_name: displayName || null,
+      promo_credits_remaining: promoCreditsRemaining,
+      terms_accepted_at: termsAcceptedAt,
+      privacy_accepted_at: privacyAcceptedAt,
+      photo_parent_consent_at: photoParentConsentAt,
     });
     return getAccountById(accountId);
+  }
+
+  function createGuestAccount() {
+    return createAccountRecord({ promoCreditsRemaining: 1 });
+  }
+
+  function resolveCheckoutAccount(checkoutSession) {
+    const requestedAccountId = sanitizeText(checkoutSession.metadata?.accountId, '', 64);
+    const email = normalizeEmail(checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '');
+
+    if (requestedAccountId) {
+      const account = getAccountById(requestedAccountId);
+      if (account) return account;
+    }
+
+    if (email) {
+      const accountByEmail = getAccountByEmail(email);
+      if (accountByEmail) return accountByEmail;
+
+      // Preserve paid credits even if the original guest account vanished from SQLite.
+      return createAccountRecord({
+        email,
+        promoCreditsRemaining: 0,
+      });
+    }
+
+    throw new Error('Checkout account could not be resolved.');
   }
 
   function issueSessionForAccount(accountId, userAgent) {
@@ -860,11 +894,12 @@ function createServices({ db, statements, env }) {
   const finalizeCheckoutTransaction = db.transaction((checkoutSession) => {
     const stripeSessionId = checkoutSession.id;
     const creditsToAdd = Number.parseInt(checkoutSession.metadata?.credits, 10) || 0;
-    const accountId = sanitizeText(checkoutSession.metadata?.accountId, '', 64);
     const plan = sanitizeText(checkoutSession.metadata?.plan, 'unknown', 24);
     const email = normalizeEmail(checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '');
+    const resolvedAccount = resolveCheckoutAccount(checkoutSession);
+    const accountId = resolvedAccount.id;
 
-    if (!stripeSessionId || !accountId || creditsToAdd <= 0) {
+    if (!stripeSessionId || creditsToAdd <= 0) {
       throw new Error('Invalid checkout session metadata.');
     }
 
@@ -885,8 +920,7 @@ function createServices({ db, statements, env }) {
     statements.markCheckoutCompleted.run(email || null, stripeSessionId);
 
     if (email) {
-      const account = getAccountById(accountId);
-      if (account && !account.email) {
+      if (!resolvedAccount.email) {
         syncAccountProfile(accountId, { email });
       }
     }
