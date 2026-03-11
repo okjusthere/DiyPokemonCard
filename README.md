@@ -4,7 +4,7 @@ An AI-powered Pokemon trading card creator. Pick a color, animal, and superpower
 
 ## Features
 
-- AI image generation with Azure OpenAI
+- AI image generation with Azure OpenAI (`gpt-image-1`)
 - Card stat generation with structured JSON normalization
 - Email delivery for finished cards and account restore links
 - Account-bound credits instead of IP-bound credits

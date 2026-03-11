@@ -629,7 +629,7 @@ function buildAiClients(env) {
     aiImage: new AzureOpenAI({
       apiKey: env.AZURE_OPENAI_API_KEY,
       endpoint: env.AZURE_OPENAI_ENDPOINT,
-      apiVersion: '2024-02-01',
+      apiVersion: env.AZURE_IMAGE_API_VERSION || '2025-04-01-preview',
     }),
     aiChat: new AzureOpenAI({
       apiKey: env.AZURE_OPENAI_API_KEY,
@@ -642,6 +642,19 @@ function buildAiClients(env) {
       apiVersion: '2025-01-01-preview',
     }),
   };
+}
+
+function resolveGeneratedImageSource(imageResp) {
+  const firstImage = imageResp?.data?.[0];
+  if (!firstImage || typeof firstImage !== 'object') return '';
+
+  const url = typeof firstImage.url === 'string' ? firstImage.url.trim() : '';
+  if (url) return url;
+
+  const b64 = typeof firstImage.b64_json === 'string' ? firstImage.b64_json.trim() : '';
+  if (b64) return `data:image/png;base64,${b64}`;
+
+  return '';
 }
 
 function buildStripe(env) {
@@ -1118,6 +1131,16 @@ function createServices({ db, statements, env }) {
 
 function downloadImageBuffer(url) {
   return new Promise((resolve, reject) => {
+    if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(String(url || ''))) {
+      try {
+        const base64 = String(url).split(',', 2)[1] || '';
+        resolve(Buffer.from(base64, 'base64'));
+      } catch {
+        reject(new Error('Invalid base64 image data.'));
+      }
+      return;
+    }
+
     function follow(nextUrl) {
       let parsed;
       try {
@@ -2152,15 +2175,14 @@ function createApp(options = {}) {
       const prompt = `A cute chibi-style fictional creature inspired by a ${colorDesc} ${animalDesc} with ${powerDesc}. Friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design. High quality, vibrant. Original character design only, do not include any existing copyrighted characters.`;
 
       const imageResp = await services.aiImage.images.generate({
-        model: env.AZURE_IMAGE_MODEL || 'dall-e-3',
+        model: env.AZURE_IMAGE_MODEL || 'gpt-image-1',
         prompt,
         n: 1,
         size: '1024x1024',
-        quality: 'standard',
       });
-      const imageUrl = imageResp.data?.[0]?.url;
+      const imageUrl = resolveGeneratedImageSource(imageResp);
       if (!imageUrl) {
-        throw new Error('Image generation returned no URL.');
+        throw new Error('Image generation returned no usable image payload.');
       }
 
       const cardResp = await services.aiChat.chat.completions.create({
@@ -2296,15 +2318,14 @@ Return:
       );
 
       const imageResp = await services.aiImage.images.generate({
-        model: env.AZURE_IMAGE_MODEL || 'dall-e-3',
+        model: env.AZURE_IMAGE_MODEL || 'gpt-image-1',
         prompt: portraitPrompt,
         n: 1,
         size: '1024x1024',
-        quality: 'standard',
       });
-      const imageUrl = imageResp.data?.[0]?.url;
+      const imageUrl = resolveGeneratedImageSource(imageResp);
       if (!imageUrl) {
-        throw new Error('Image generation returned no URL.');
+        throw new Error('Image generation returned no usable image payload.');
       }
 
       const trainerData = normalizeTrainerCardData({
@@ -2420,5 +2441,6 @@ module.exports = {
   getCheckoutVerificationState,
   normalizeCardData,
   normalizeTrainerCardData,
+  resolveGeneratedImageSource,
   shouldFinalizeCheckoutForEvent,
 };

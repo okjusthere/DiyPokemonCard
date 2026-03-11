@@ -8,6 +8,7 @@ const {
   createApp,
   getCheckoutVerificationState,
   normalizeCardData,
+  resolveGeneratedImageSource,
   shouldFinalizeCheckoutForEvent,
 } = require('../app');
 
@@ -181,6 +182,17 @@ test('normalizeCardData clamps unsafe values', () => {
   assert.equal(card.resistance, 'Normal');
   assert.equal(card.retreatCost, 4);
   assert.equal(card.flavor.length <= 160, true);
+});
+
+test('resolveGeneratedImageSource supports both URL and base64 image responses', () => {
+  assert.equal(
+    resolveGeneratedImageSource({ data: [{ url: 'https://example.com/image.png' }] }),
+    'https://example.com/image.png'
+  );
+  assert.equal(
+    resolveGeneratedImageSource({ data: [{ b64_json: 'YWJj' }] }),
+    'data:image/png;base64,YWJj'
+  );
 });
 
 test('shouldFinalizeCheckoutForEvent handles async payment states safely', () => {
