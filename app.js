@@ -624,11 +624,14 @@ function buildAiClients(env) {
     return { aiImage: null, aiChat: null, aiVision: null };
   }
 
+  const imageEndpoint = env.AZURE_IMAGE_ENDPOINT || env.AZURE_OPENAI_ENDPOINT;
+  const imageApiKey = env.AZURE_IMAGE_API_KEY || env.AZURE_OPENAI_API_KEY;
+
   console.log('   AI:       ✅ Ready (Azure OpenAI)');
   return {
     aiImage: new AzureOpenAI({
-      apiKey: env.AZURE_OPENAI_API_KEY,
-      endpoint: env.AZURE_OPENAI_ENDPOINT,
+      apiKey: imageApiKey,
+      endpoint: imageEndpoint,
       apiVersion: env.AZURE_IMAGE_API_VERSION || '2025-04-01-preview',
     }),
     aiChat: new AzureOpenAI({
@@ -2175,10 +2178,9 @@ function createApp(options = {}) {
       const prompt = `A cute chibi-style fictional creature inspired by a ${colorDesc} ${animalDesc} with ${powerDesc}. Friendly happy expression, big sparkling eyes, round proportions, pastel colors, clean white background. Digital art style similar to Japanese anime creature design. High quality, vibrant. Original character design only, do not include any existing copyrighted characters.`;
 
       const imageResp = await services.aiImage.images.generate({
-        model: env.AZURE_IMAGE_MODEL || 'gpt-image-1',
+        model: env.AZURE_IMAGE_MODEL || 'FLUX-1.1-pro',
         prompt,
         n: 1,
-        size: '1024x1024',
       });
       const imageUrl = resolveGeneratedImageSource(imageResp);
       if (!imageUrl) {
@@ -2318,10 +2320,9 @@ Return:
       );
 
       const imageResp = await services.aiImage.images.generate({
-        model: env.AZURE_IMAGE_MODEL || 'gpt-image-1',
+        model: env.AZURE_IMAGE_MODEL || 'FLUX-1.1-pro',
         prompt: portraitPrompt,
         n: 1,
-        size: '1024x1024',
       });
       const imageUrl = resolveGeneratedImageSource(imageResp);
       if (!imageUrl) {

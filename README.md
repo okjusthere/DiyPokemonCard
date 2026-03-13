@@ -4,7 +4,7 @@ An AI-powered Pokemon trading card creator. Pick a color, animal, and superpower
 
 ## Features
 
-- AI image generation with Azure OpenAI (`gpt-image-1`)
+- AI image generation with Azure (`FLUX-1.1-pro` or compatible `images/generations` deployment)
 - Card stat generation with structured JSON normalization
 - Email delivery for finished cards and account restore links
 - Account-bound credits instead of IP-bound credits
@@ -17,7 +17,7 @@ An AI-powered Pokemon trading card creator. Pick a color, animal, and superpower
 ```bash
 npm install
 cp .env.example .env
-# Edit .env with your Azure OpenAI, Stripe, and email credentials
+# Edit .env with your Azure text/vision models, image model deployment, Stripe, and email credentials
 npm start
 ```
 
@@ -31,8 +31,12 @@ npm test
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | Yes |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL | Yes |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key for text/vision models | Yes |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL for text/vision models | Yes |
+| `AZURE_IMAGE_API_KEY` | Optional separate API key for image deployment | No |
+| `AZURE_IMAGE_ENDPOINT` | Optional separate image endpoint URL (for Azure AI Foundry image models) | No |
+| `AZURE_IMAGE_API_VERSION` | API version for image generation | Recommended |
+| `AZURE_IMAGE_MODEL` | Image deployment/model name | Yes |
 | `EMAIL_SERVICE` | Email service (default: gmail) | No |
 | `EMAIL_USER` | Sender email address | No |
 | `EMAIL_PASS` | Email app password | No |
@@ -45,7 +49,7 @@ npm test
 
 ## Tech Stack
 
-- **Backend**: Express.js + SQLite + Azure OpenAI + Stripe
+- **Backend**: Express.js + SQLite + Azure OpenAI / Azure AI Foundry + Stripe
 - **Card Rendering**: `@napi-rs/canvas`
 - **Email**: Nodemailer
 - **Frontend**: Vanilla HTML/CSS/JS
