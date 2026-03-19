@@ -2340,7 +2340,10 @@
                 if (displayName) {
                     document.getElementById('kidName').value = displayName;
                     document.getElementById('photoKidName').value = displayName;
-                    document.getElementById('cardCreator').textContent = displayName;
+                    const cardCreator = document.getElementById('cardCreator');
+                    if (cardCreator) {
+                        cardCreator.textContent = displayName;
+                    }
                 }
 
                 if (data.emailStatus === 'sent') {
