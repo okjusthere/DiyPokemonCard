@@ -269,6 +269,8 @@ function resolveBaseUrl(req, env) {
   return env.BASE_URL || `${req.protocol}://${req.get('host')}`;
 }
 
+const STRIPE_APP_ID = 'diypokecard';
+
 function toFriendlyApiError(error, fallbackMessage) {
   if (error && error.publicMessage) {
     return { status: error.statusCode || 400, body: { error: error.publicMessage, code: error.code } };
@@ -312,6 +314,8 @@ function isProjectCheckoutSession(checkoutSession) {
 
   const metadata = checkoutSession.metadata;
   if (!metadata || typeof metadata !== 'object') return false;
+
+  if (metadata.app === STRIPE_APP_ID) return true;
 
   const accountId = sanitizeText(metadata.accountId, '', 64);
   const plan = sanitizeText(metadata.plan, '', 24);
@@ -2056,6 +2060,7 @@ function createApp(options = {}) {
         client_reference_id: account.id,
         customer_email: account.email,
         metadata: {
+          app: STRIPE_APP_ID,
           accountId: account.id,
           credits: String(planData.credits),
           plan,
