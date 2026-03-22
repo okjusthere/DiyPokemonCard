@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   createApp,
   getCheckoutVerificationState,
+  isProjectCheckoutSession,
   normalizeCardData,
   resolveGeneratedImageSource,
   shouldFinalizeCheckoutForEvent,
@@ -126,6 +127,36 @@ test('checkout finalization is idempotent and increases paid credits once', () =
   }
 });
 
+test('checkout finalization rejects sessions from other products', () => {
+  const harness = createTestApp();
+  const services = harness.app.locals.services;
+
+  try {
+    const req = { headers: {}, get() { return ''; } };
+    const res = createFakeRes();
+    const account = services.getOrCreateSessionAccount(req, res);
+
+    assert.throws(
+      () => services.finalizeCheckoutSession({
+        id: 'cs_foreign_123',
+        mode: 'subscription',
+        metadata: {
+          accountId: account.id,
+          credits: '5',
+          plan: 'pack5',
+          email: 'trainer@example.com',
+        },
+        customer_details: {
+          email: 'trainer@example.com',
+        },
+      }),
+      /Invalid checkout session metadata\./
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('checkout finalization can recover a purchase when the original account record is missing', () => {
   const harness = createTestApp();
   const services = harness.app.locals.services;
@@ -210,6 +241,38 @@ test('shouldFinalizeCheckoutForEvent handles async payment states safely', () =>
   );
   assert.equal(
     shouldFinalizeCheckoutForEvent('checkout.session.async_payment_failed', { payment_status: 'unpaid' }),
+    false
+  );
+});
+
+test('isProjectCheckoutSession only accepts this product credit purchases', () => {
+  assert.equal(
+    isProjectCheckoutSession({
+      id: 'cs_test_123',
+      mode: 'payment',
+      metadata: {
+        accountId: 'acct_123',
+        credits: '5',
+        plan: 'pack5',
+        email: 'trainer@example.com',
+      },
+    }),
+    true
+  );
+
+  assert.equal(
+    isProjectCheckoutSession({
+      id: 'cs_live_foreign',
+      mode: 'subscription',
+      metadata: {
+        language: 'zh',
+        billingInterval: 'month',
+        email: 'info@beacon-stone.com',
+        market: 'new-york',
+        clientId: 'mmwgw5cv0jtr6b',
+        audienceProfile: 'chinese-community',
+      },
+    }),
     false
   );
 });

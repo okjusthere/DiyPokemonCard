@@ -306,6 +306,21 @@ function shouldFinalizeCheckoutForEvent(eventType, checkoutSession) {
   return false;
 }
 
+function isProjectCheckoutSession(checkoutSession) {
+  if (!checkoutSession || typeof checkoutSession !== 'object') return false;
+  if (checkoutSession.mode && checkoutSession.mode !== 'payment') return false;
+
+  const metadata = checkoutSession.metadata;
+  if (!metadata || typeof metadata !== 'object') return false;
+
+  const accountId = sanitizeText(metadata.accountId, '', 64);
+  const plan = sanitizeText(metadata.plan, '', 24);
+  const credits = Number.parseInt(metadata.credits, 10) || 0;
+  const planData = PLANS[plan];
+
+  return !!accountId && !!planData && credits === planData.credits;
+}
+
 function getCheckoutVerificationState(checkoutSession, storedSession) {
   if (storedSession?.status === 'completed') return 'credited';
   if (storedSession?.status === 'failed_async_payment') return 'failed';
@@ -911,11 +926,12 @@ function createServices({ db, statements, env }) {
     const stripeSessionId = checkoutSession.id;
     const creditsToAdd = Number.parseInt(checkoutSession.metadata?.credits, 10) || 0;
     const plan = sanitizeText(checkoutSession.metadata?.plan, 'unknown', 24);
+    const planData = PLANS[plan];
     const email = normalizeEmail(checkoutSession.customer_details?.email || checkoutSession.metadata?.email || '');
     const resolvedAccount = resolveCheckoutAccount(checkoutSession);
     const accountId = resolvedAccount.id;
 
-    if (!stripeSessionId || creditsToAdd <= 0) {
+    if (!stripeSessionId || !planData || creditsToAdd !== planData.credits || !isProjectCheckoutSession(checkoutSession)) {
       throw new Error('Invalid checkout session metadata.');
     }
 
@@ -1887,6 +1903,11 @@ function createApp(options = {}) {
 
     try {
       const checkoutSession = event.data?.object;
+      const belongsToProject = isProjectCheckoutSession(checkoutSession);
+      if (event.type.startsWith('checkout.session.') && !belongsToProject) {
+        return res.json({ received: true, ignored: true });
+      }
+
       if (shouldFinalizeCheckoutForEvent(event.type, checkoutSession)) {
         const result = services.finalizeCheckoutSession(checkoutSession);
         if (!result.alreadyProcessed) {
@@ -2072,6 +2093,9 @@ function createApp(options = {}) {
 
       const checkoutSession = await services.stripe.checkout.sessions.retrieve(sessionId);
       const storedSession = services.getCheckoutSessionRecord(sessionId);
+      if (!storedSession && !isProjectCheckoutSession(checkoutSession)) {
+        throw createPublicError('This checkout session does not belong to this product.', 404, 'unknown_checkout_session');
+      }
       const checkoutAccountId = sanitizeText(
         checkoutSession.metadata?.accountId || storedSession?.account_id || '',
         '',
@@ -2440,6 +2464,7 @@ Return:
 module.exports = {
   createApp,
   getCheckoutVerificationState,
+  isProjectCheckoutSession,
   normalizeCardData,
   normalizeTrainerCardData,
   resolveGeneratedImageSource,
