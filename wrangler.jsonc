@@ -1,0 +1,75 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "diypokecard",
+  "main": "worker/index.mjs",
+  "account_id": "3dece8c6e6159891f5934007a97d81d3",
+  "compatibility_date": "2026-10-07",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "build": {
+    "command": "node scripts/build-worker.js"
+  },
+  "assets": {
+    "directory": "./dist/assets",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "diypokecard-production",
+      "database_id": "003c7433-3a08-4fe4-b743-ea7aea063f4c",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARTWORK",
+      "bucket_name": "diypokecard-artwork"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "BASE_URL": "https://diypokecard.com",
+    "AI_ENABLED": "true",
+    "PAYMENTS_ENABLED": "true",
+    "EMAIL_ENABLED": "true",
+    "AI_IMAGE_MODEL": "@cf/black-forest-labs/flux-2-klein-9b",
+    "AI_TEXT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "TRIAL_CREDITS": "1",
+    "AI_DAILY_LIMIT": "100",
+    "STRIPE_PRICE_STARTER15": "price_1UNvJMGS6DZ8N1FCiDWUpXwP",
+    "STRIPE_PRICE_FAMILY40": "price_1UNvSSGS6DZ8N1FCHiT6Oq5w",
+    "STRIPE_PRICE_CREATOR90": "price_1UNvTzGS6DZ8N1FClbtgHokv"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "triggers": {
+    "crons": [
+      "*/15 * * * *"
+    ]
+  },
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "diypokecard.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.diypokecard.com",
+      "custom_domain": true
+    }
+  ]
+}

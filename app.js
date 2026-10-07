@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const Database = require('better-sqlite3');
 const { AzureOpenAI } = require('openai');
+const site = require('./lib/site');
 
 const SESSION_COOKIE = 'dpc_session';
 const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
@@ -101,11 +102,7 @@ const POWERS_MAP = {
   water: 'water splashes and ocean waves',
 };
 
-const PLANS = {
-  single: { credits: 1, price: 149, label: '1 Card - $1.49' },
-  pack5: { credits: 5, price: 299, label: '5 Cards - $2.99' },
-  pack10: { credits: 10, price: 499, label: '10 Cards - $4.99' },
-};
+const PLANS = require('./lib/pricing.json');
 
 let fontsRegistered = false;
 
@@ -249,11 +246,11 @@ function applySecurityHeaders(req, res, next) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "img-src 'self' data: https:",
+      "img-src 'self' data: blob: https:",
       "connect-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'none'",
@@ -1154,17 +1151,21 @@ function createServices({ db, statements, env }) {
 
 function downloadImageBuffer(url) {
   return new Promise((resolve, reject) => {
+    const maxBytes = 15 * 1024 * 1024;
     if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(String(url || ''))) {
       try {
         const base64 = String(url).split(',', 2)[1] || '';
-        resolve(Buffer.from(base64, 'base64'));
+        const buffer = Buffer.from(base64, 'base64');
+        if (buffer.length > maxBytes) throw new Error('Image is too large.');
+        resolve(buffer);
       } catch {
         reject(new Error('Invalid base64 image data.'));
       }
       return;
     }
 
-    function follow(nextUrl) {
+    function follow(nextUrl, redirects = 0) {
+      if (redirects > 3) { reject(new Error('Too many image redirects.')); return; }
       let parsed;
       try {
         parsed = new URL(nextUrl);
@@ -1181,7 +1182,7 @@ function downloadImageBuffer(url) {
       const request = https.get(parsed, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           response.resume();
-          follow(response.headers.location);
+          follow(new URL(response.headers.location, parsed).href, redirects + 1);
           return;
         }
 
@@ -1192,7 +1193,12 @@ function downloadImageBuffer(url) {
         }
 
         const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
+        let bytes = 0;
+        response.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > maxBytes) { request.destroy(new Error('Image is too large.')); return; }
+          chunks.push(chunk);
+        });
         response.on('end', () => resolve(Buffer.concat(chunks)));
         response.on('error', reject);
       });
@@ -1977,6 +1983,8 @@ function createApp(options = {}) {
 
   app.use((req, res, next) => {
     if (!req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     if (req.path === '/api/webhook' || req.path === '/api/account/restore/request' || req.path === '/api/account/restore/consume') {
       return next();
     }
@@ -1992,6 +2000,11 @@ function createApp(options = {}) {
     res.json({
       account: req.account,
       restoreAvailable: !!services.transporter,
+      capabilities: {
+        ai: !!(services.aiImage && services.aiChat),
+        aiPhoto: !!(services.aiImage && services.aiVision),
+        payments: !!services.stripe,
+      },
     });
   });
 
@@ -2450,17 +2463,52 @@ Return:
     }
   });
 
+  // Account-bound artwork avoids cross-origin canvas failures and arbitrary URL proxying.
+  app.get('/api/card/art/:generationId', async (req, res) => {
+    try {
+      if (!/^gen_[a-f0-9]{32}$/.test(req.params.generationId)) return res.status(400).json({ error: 'Invalid card reference.' });
+      const stored = services.getGenerationResult(req.account.id, req.params.generationId);
+      if (!stored) return res.status(404).json({ error: 'Card not found in this account.' });
+      const image = await loadImage(await downloadImageBuffer(stored.image_url));
+      if (image.width * image.height > 25_000_000) throw new Error('Generated image dimensions are too large.');
+      const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+      const canvas = createCanvas(Math.round(image.width * scale), Math.round(image.height * scale));
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      res.type('png').send(canvas.toBuffer('image/png'));
+    } catch (error) {
+      console.error('Card artwork export failed:', error.message);
+      res.status(502).json({ error: 'The artwork could not be loaded. Please try again later.' });
+    }
+  });
+  app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
+
+  let publicOrigin = site.ORIGIN;
+  if (env.BASE_URL) {
+    try { const configured = new URL(env.BASE_URL); if (['https:', 'http:'].includes(configured.protocol)) publicOrigin = configured.origin; } catch { /* Fall back to the established domain. */ }
+  }
+  const pageOptions = { origin: publicOrigin };
+  const sendPage = (res, html) => res.set('Cache-Control', 'no-cache').type('html').send(html);
+  app.get('/', (_req, res) => sendPage(res, site.home(pageOptions)));
+  app.get('/studio', (_req, res) => sendPage(res, site.home({ ...pageOptions, studioOnly: true })));
+  app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+  Object.keys(site.pages).forEach(route => app.get(route, (_req, res) => sendPage(res, site.article(route, pageOptions))));
+  app.get('/privacy.html', (_req, res) => sendPage(res, site.legal('privacy', pageOptions)));
+  app.get('/terms.html', (_req, res) => sendPage(res, site.legal('terms', pageOptions)));
+  app.get('/sitemap.xml', (_req, res) => res.set('Cache-Control', 'public, max-age=3600').type('xml').send(site.sitemap(publicOrigin)));
+  app.get('/robots.txt', (_req, res) => res.type('text').send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${publicOrigin}/sitemap.xml\n`));
+
   app.use(express.static(path.join(__dirname, 'public'), {
     maxAge: '7d',
     setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) {
+      if (env.NODE_ENV !== 'production' || filePath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache');
       }
     },
   }));
 
   app.get('*', (_req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.status(404);
+    sendPage(res, site.notFound(pageOptions));
   });
 
   return app;

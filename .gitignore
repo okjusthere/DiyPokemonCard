@@ -3,6 +3,12 @@ node_modules/
 
 # Environment
 .env
+.env.*
+!.env.example
+.dev.vars*
+.wrangler/
+dist/
+.deployment-private/
 
 # OS
 .DS_Store
@@ -14,3 +20,7 @@ data/
 # Logs
 *.log
 npm-debug.log*
+
+# Dashboard screenshots stay local: they show shared Stripe and Cloudflare account details.
+docs/screenshots/stripe-*
+docs/screenshots/cloudflare-*

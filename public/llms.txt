@@ -1,39 +1,21 @@
-# DIY Poke Card Maker
+# DIY Poké Card
 
-> AI-powered trading card creator at https://www.diypokecard.com
+> An independent fan-made trading card creation studio. Not affiliated with The Pokémon Company or Nintendo.
 
-## What is DIY Poke Card Maker?
+The manual editor is free. Users choose original creature illustrations or their own JPEG, PNG, and WebP photos, edit names and abilities, and preview cards in 2D or with simulated 3D tilt and holographic finishes. The studio exports 945 × 1320 PNG images and self-contained interactive HTML keepsakes. Collections and photo drafts are stored locally in the browser, with JSON backup and import.
 
-DIY Poke Card Maker is an AI-powered web application that creates custom trading cards in seconds. Unlike traditional card makers that require manual template editing, this tool uses AI (DALL-E 3 and GPT-4o) to generate original artwork and card stats automatically.
+Optional AI artwork uses credits and works only when AI services are configured. The regular photo editor does not send photos to the server. Explicitly choosing AI photo transformation sends the photo for processing and requires adult permission. Digital holographic effects are not physical foil printing.
 
-## Two ways to create cards
+## Useful pages
+- [Card maker](https://diypokecard.com/): Live studio and original companion templates.
+- [Photo cards](https://diypokecard.com/photo-card-maker): Local photo editing, crop controls, and optional AI processing.
+- [Holographic cards](https://diypokecard.com/holographic-card-maker): 2D versus 3D, digital finishes, and interactive downloads.
+- [Printing](https://diypokecard.com/printable-trading-cards): A4 or Letter layout, 63 × 88 mm cards, calibration and cut guides.
+- [Card ideas](https://diypokecard.com/card-ideas): Twelve prompts with editable starting points.
+- [Make a game](https://diypokecard.com/make-a-card-game): A local two-card comparison game and home-play rules.
+- [Privacy](https://diypokecard.com/privacy.html)
+- [Terms](https://diypokecard.com/terms.html)
 
-### Create from Photo
-Upload any photo and AI transforms it into an anime-style portrait, then places it on a professional Trainer card template. Choose from Supporter, Full Art, or EX card styles. No design skills needed.
+This file is a convenience summary, not a guarantee of search indexing or AI citation.
 
-### Design Your Own
-Pick a color, animal, and superpower. AI generates a completely unique creature with original artwork and full card stats (HP, attacks, weakness, resistance) in about 15-20 seconds.
-
-## Frequently Asked Questions
-
-### Is it free?
-Yes. Your first card is completely free with no signup required. After that, affordable card packs are available starting from $1.49 for a 1-card pack, with volume discounts up to 10 cards.
-
-### How is this different from pokecardmaker.net or pokecardgenerator.com?
-Those sites are manual template editors where you upload your own image and fill in stats by hand. DIY Poke Card Maker uses AI to generate original anime-style artwork and auto-generate balanced card stats. You just pick options or upload a photo and AI does the rest.
-
-### What technology does it use?
-The app uses Azure OpenAI's DALL-E 3 for image generation and GPT-4o for card text creation. Card templates are rendered server-side using Node.js Canvas for professional quality output.
-
-### Can I use the cards I create?
-Yes. All AI-generated artwork is original and not copied from any existing characters. You own the cards you create and can download, share, or print them.
-
-### Does it store my photos?
-No. Photo uploads are processed transiently to generate your card and are not stored after the request completes.
-
-## Technical Details
-- Built with Node.js, Express, and SQLite
-- AI: Azure OpenAI (DALL-E 3 + GPT-4o)
-- Payments: Stripe (credit card + Alipay)
-- Hosting: Railway
-- Domain: www.diypokecard.com
+- [Pricing](https://diypokecard.com/pricing): Free manual studio; optional one-time AI packs of 15/$4.99, 40/$9.99, and 90/$19.99 USD. No subscription.

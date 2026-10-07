@@ -1,63 +1,64 @@
-# DIY Pokemon Card Maker
+# DIY Poké Card — Little Legends Studio
 
-An AI-powered Pokemon trading card creator. Pick a color, animal, and superpower, or upload a photo with consent, and the app generates a unique creature image plus full card stats.
+A complete rebuild of the free, family-friendly card-making experience. The studio works without AI credentials: start with an original companion or a local photo, personalize the card, and keep something you can actually play with.
 
-## Features
+## Production and local development
 
-- AI image generation with Azure (`FLUX-1.1-pro` or compatible `images/generations` deployment)
-- Card stat generation with structured JSON normalization
-- Email delivery for finished cards and account restore links
-- Account-bound credits instead of IP-bound credits
-- Stripe checkout with idempotent credit fulfillment
-- Photo mode with explicit consent capture
-- Mobile-friendly single-page frontend
+Production is [diypokecard.com](https://diypokecard.com), hosted on Cloudflare Workers with static assets, D1, private R2, Workers AI and Cloudflare Email Service. The original Railway infrastructure is retired. No legacy user or credit migration is required.
 
-## Setup
+Use Node.js 22+:
 
-```bash
-npm install
-cp .env.example .env
-# Edit .env with your Azure text/vision models, image model deployment, Stripe, and email credentials
-npm start
+```sh
+npm ci
+npm run build
+npx wrangler d1 migrations apply diypokecard-production --local
+npm run dev:worker
 ```
 
-Run tests:
+For a frontend-only local preview, the older Node harness remains available with `PORT=3100 DB_PATH=/tmp/diypoke-studio-dev.db npm run dev`. It is not the production backend. Use `wrangler dev` to exercise the new runtime; remote AI calls may incur provider usage.
 
-```bash
+## What works
+
+- Three original illustrated companions; editable name, energy, HP, move, damage, ability, and creator name.
+- Classic and full-art layouts; matte, holo, and cosmic finishes; 2D view, pointer/keyboard 3D tilt, and a reversible card back.
+- Local JPEG/PNG/WebP photos, crop positioning and zoom. Images resize in the browser; manual editing does not upload photos.
+- Undo/redo, automatic local drafts, a collection of up to 60 cards, editable JSON backup/import, and undo after removing a card.
+- 945 × 1,320 PNG downloads and self-contained interactive HTML keepsakes with embedded art.
+- A4/Letter print sheets at 63 × 88 mm, nine cards per page, cut guides, and a 50 mm calibration line.
+- Surprise-card reveals, twelve starter ideas, creative challenges, and a simple two-player stat comparison game.
+- Server-rendered search landing pages, canonical URLs, social preview, structured data, sitemap, real 404s, and self-hosted fonts.
+- Cloudflare AI creature creation and photo transformation, Stripe one-time credit packs, private artwork links and email account restore. Lost responses can be recovered with the same generation ID without another charge.
+
+The 3D experience is an interactive card with simulated reflections, not a generated 3D creature model. The initial public interface is English for an international search audience. This is an independent fan-made tool, not an official Pokémon product.
+
+## Project map
+
+| File | Responsibility |
+|---|---|
+| `lib/site.js` | Server-rendered home, studio, guides, policy pages, metadata and sitemap |
+| `public/card-model.js` | Shared input normalization, safe SVG renderer and templates |
+| `public/studio.js` | Editing, IndexedDB, photos, exports, print, game and service integration |
+| `public/styles.css` | Design system, responsive layouts, effects and print dimensions |
+| `worker/` | Production routing, accounts, D1 credit ledger, R2 artwork, Stripe and email |
+| `wrangler.jsonc`, `migrations/` | Cloudflare resources, feature gates and schema |
+| `lib/pricing.json` | Current one-time AI packs |
+| `app.js` | Legacy local preview/test harness, not deployed |
+| `public/art/` | Original generated companion artwork, optimized WebP |
+| `public/fonts/` | Self-hosted Outfit and DM Sans, with SIL OFL licenses |
+| `scripts/build-social-image.js` | Regenerates the social preview and touch icon |
+| `test/` | Service, card, SSR, route and artwork-isolation tests |
+
+## Deployment and configuration
+
+See [deployment runbook](docs/DEPLOYMENT.md) for resources, feature flags, secrets, operations and rollback. See [pricing research](docs/PRICING.md) for market benchmarks and launch assumptions. AI and email use native Cloudflare bindings. Stripe uses a dedicated restricted secret, a webhook signing secret and three explicit price IDs; no credentials belong in Git.
+
+```sh
 npm test
+npm run build
+npm run db:migrate
+npm run deploy
 ```
 
-## Environment Variables
+The studio is English for an international search audience. Search landing pages are generated as complete HTML at build time; `studio` and private APIs are excluded from indexing. There is no promise of SEO rankings or AI-answer citations.
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key for text/vision models | Yes |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL for text/vision models | Yes |
-| `AZURE_IMAGE_API_KEY` | Optional separate API key for image deployment | No |
-| `AZURE_IMAGE_ENDPOINT` | Optional separate image endpoint URL (for Azure AI Foundry image models) | No |
-| `AZURE_IMAGE_API_VERSION` | API version for image generation | Recommended |
-| `AZURE_IMAGE_MODEL` | Image deployment/model name | Yes |
-| `EMAIL_SERVICE` | Email service (default: gmail) | No |
-| `EMAIL_USER` | Sender email address | No |
-| `EMAIL_PASS` | Email app password | No |
-| `EMAIL_FROM` | Optional sender override | No |
-| `STRIPE_SECRET_KEY` | Stripe secret key | For paid credits |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | For paid credits |
-| `BASE_URL` | Public app URL for redirects and restore links | Recommended |
-| `TRUST_PROXY` | Express proxy trust setting | Recommended behind a proxy |
-| `PORT` | Server port (default: 3000) | No |
-
-## Tech Stack
-
-- **Backend**: Express.js + SQLite + Azure OpenAI / Azure AI Foundry + Stripe
-- **Card Rendering**: `@napi-rs/canvas`
-- **Email**: Nodemailer
-- **Frontend**: Vanilla HTML/CSS/JS
-
-## Operational Notes
-
-- Paid credits are attached to the account email and can be restored with an emailed sign-in link.
-- Failed AI generations are refunded automatically before the response returns an error.
-- Stripe webhook fulfillment is idempotent to prevent duplicate credit grants.
-- Stripe webhook endpoint is `/api/webhook`; subscribe to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.async_payment_failed`.
-- Photo uploads are processed transiently and are not intentionally stored after request completion.
+See [QA evidence](docs/QA.md), [product direction](docs/PRODUCT-DIRECTION.md), and [artwork provenance](docs/ARTWORK.md). Physical printer output and future traffic/conversion outcomes are not verified by software tests.

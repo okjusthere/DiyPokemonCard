@@ -1,0 +1,17 @@
+import { uid, hash, problem, clean } from './storage.mjs';
+export async function sendAccessEmail(env,account,generationId=''){
+ if(env.EMAIL_ENABLED!=='true'||!env.EMAIL)throw problem('Account email is not available yet. Please keep your browser session and card backups.',503);
+ const id=uid('restore'),secret=crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+ const expires=new Date(Date.now()+20*60*1000).toISOString();
+ await env.DB.prepare('INSERT INTO auth_tokens(id,account_id,email,token_hash,expires_at) VALUES(?,?,?,?,?)').bind(id,account.id,account.email,await hash(secret),expires).run();
+ const link=new URL('/api/account/restore/consume',env.BASE_URL);link.searchParams.set('token',`${id}.${secret}`);if(generationId)link.searchParams.set('generation',generationId);
+ try{
+  await env.EMAIL.send({from:env.EMAIL_FROM||'studio@diypokecard.com',to:account.email,subject:generationId?'Your little legend is ready to open':'Your DIY Poké Card sign-in link',text:`Open your ${generationId?'card and ':''}AI account: ${link.href}\n\nThis link expires in 20 minutes and can be used once. Your photos and card collection remain in the browser where you saved them. If you did not request this message, ignore it.`,html:`<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px;color:#24283c"><h1>A little imagination, all yours.</h1><p>${generationId?'Open your original AI card and download it in the studio.':'Restore your purchased AI credits on this browser.'}</p><p><a href="${link.href.replaceAll('&','&amp;')}" style="display:inline-block;background:#4358d9;color:white;padding:14px 20px;border-radius:10px;text-decoration:none">Open my ${generationId?'card':'AI account'}</a></p><p>This link expires in 20 minutes and works once. Your local card collection stays on the device where you saved it.</p><p>If you did not request this message, ignore it.</p><small>DIY Poké Card · Independent fan-made creative studio</small></div>`});
+ }catch{await env.DB.prepare("UPDATE auth_tokens SET used_at=datetime('now') WHERE id=?").bind(id).run();throw problem('We could not deliver the email. Please try later or download your card.',503);}
+}
+export function restorePage(url){
+ const token=clean(url.searchParams.get('token'),160),generation=clean(url.searchParams.get('generation'),40);
+ if(!/^restore_[a-f0-9]{32}\.[a-f0-9]{64}$/.test(token))throw problem('This sign-in link is invalid.');
+ const card=/^gen_[a-f0-9]{32}$/.test(generation)?generation:'';
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Restore your AI account | DIY Poké Card</title><style>body{font:18px system-ui;background:#faf9f5;color:#24283c;max-width:480px;margin:12vh auto;padding:25px}button{background:#4358d9;color:white;font:inherit;padding:16px 24px;border:0;border-radius:12px;cursor:pointer}p{line-height:1.7}</style></head><body><h1>Your little legends await.</h1><p>Continue to securely restore your AI credits${card?' and open your card':''} on this browser.</p><form method="post" action="/api/account/restore/consume"><input type="hidden" name="token" value="${token}"><input type="hidden" name="generation" value="${card}"><button>Restore my account</button></form><p>This link works once and expires after 20 minutes.</p></body></html>`;
+}
