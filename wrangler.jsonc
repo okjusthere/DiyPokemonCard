@@ -43,7 +43,8 @@
     "AI_IMAGE_MODEL": "@cf/black-forest-labs/flux-2-klein-9b",
     "AI_TEXT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "TRIAL_CREDITS": "1",
-    "AI_DAILY_LIMIT": "100",
+    "AI_TRIAL_DAILY_LIMIT": "100",
+    "AI_PAID_DAILY_LIMIT": "1000",
     "STRIPE_PRICE_STARTER15": "price_1UNvJMGS6DZ8N1FCiDWUpXwP",
     "STRIPE_PRICE_FAMILY40": "price_1UNvSSGS6DZ8N1FCHiT6Oq5w",
     "STRIPE_PRICE_CREATOR90": "price_1UNvTzGS6DZ8N1FClbtgHokv"
@@ -54,7 +55,8 @@
   },
   "triggers": {
     "crons": [
-      "*/15 * * * *"
+      "*/15 * * * *",
+      "0 13 * * 1"
     ]
   },
   "send_email": [

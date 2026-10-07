@@ -28,6 +28,7 @@ For a frontend-only local preview, the older Node harness remains available with
 - Surprise-card reveals, twelve starter ideas, creative challenges, and a simple two-player stat comparison game.
 - Server-rendered search landing pages, canonical URLs, social preview, structured data, sitemap, real 404s, and self-hosted fonts.
 - Cloudflare AI creature creation and photo transformation, Stripe one-time credit packs, private artwork links and email account restore. Lost responses can be recovered with the same generation ID without another charge.
+- Cookie-free aggregate usage counts, separate free-trial and paid AI ceilings, franchise-name fallback on AI card text, and a weekly owner email report.
 
 The 3D experience is an interactive card with simulated reflections, not a generated 3D creature model. The initial public interface is English for an international search audience. This is an independent fan-made tool, not an official Pokémon product.
 

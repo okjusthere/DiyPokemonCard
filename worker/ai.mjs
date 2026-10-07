@@ -1,9 +1,20 @@
 import { clean, problem, uid, rate, profile, getAccount, publicAccount, reserve, refund, complete } from './storage.mjs';
+import { track } from './metrics.mjs';
 import model from '../public/card-model.js';
 const {normalizeCard}=model;
 const colors=new Set(['red','blue','green','yellow','purple','pink','orange','white','black','rainbow']);
 const animals=new Set(['cat','dog','rabbit','dragon','fox','bird','bear','turtle','wolf','panda','dinosaur','unicorn','bunny','shark']);
 const powers={fire:'Fire',water:'Water',electric:'Electric',electricity:'Electric',lightning:'Electric',grass:'Grass',nature:'Grass',ice:'Ice',psychic:'Psychic',magic:'Psychic',flying:'Flying',wind:'Flying',ghost:'Ghost',invisible:'Ghost',super:'Normal'};
+// Card text from AI output and photo titles must not carry well-known franchise names. Creature inputs are already fixed options.
+const franchiseWords=['pokemon','pokeball','pikachu','raichu','pichu','charmander','charmeleon','charizard','squirtle','wartortle','blastoise','bulbasaur','ivysaur','venusaur','eevee','vaporeon','jolteon','flareon','espeon','umbreon','leafeon','glaceon','sylveon','jigglypuff','meowth','psyduck','snorlax','mewtwo','mew','gengar','lucario','greninja','gyarados','dragonite','lapras','togepi','lugia','rayquaza','arceus','piplup','rowlet','sprigatito','fuecoco','quaxly','ash ketchum','team rocket','nintendo','game freak'];
+const franchiseWord=new RegExp(`\\b(${franchiseWords.map(w=>w.replace(' ','\\s*')).join('|')})s?\\b`);
+// Also catch spaced or punctuated spellings of the most recognizable names, such as "Pika-chu".
+const franchiseCompact=/pokemon|pokeball|pikachu|charizard|charmander|squirtle|bulbasaur|jigglypuff|snorlax|mewtwo|nintendo/;
+export function franchiseName(value){
+ const text=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ return franchiseWord.test(text)||franchiseCompact.test(text.replace(/[^a-z]/g,''));
+}
+const dailyLimit=(value,fallback)=>Math.max(0,Number(value)||fallback);
 function bytesFromBase64(value){if(typeof value!=='string'||value.length>14_000_000||!/^[A-Za-z0-9+/=\s]+$/.test(value))throw Error('Invalid image output');return Uint8Array.from(atob(value),c=>c.charCodeAt(0));}
 export function imageType(bytes){
  if(bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71)return 'image/png';
@@ -26,13 +37,23 @@ export async function generateArtwork(request,env,account,input,fromPhoto,ipHash
  const attempt=await env.DB.prepare('SELECT status FROM generation_attempts WHERE request_id=? AND account_id=?').bind(requestId,account.id).first();
  if(attempt?.status==='reserved')throw problem('Your earlier request is still creating. Try Recover my artwork shortly; no extra credit will be used.',409);
  if(attempt?.status==='refunded')throw problem('Your earlier request could not finish and its credit was returned. Start a new generation when ready.',410);
- await rate(env.DB,`ai-account:${account.id}`,account.paid_credits>0?20:6,3600);await rate(env.DB,`ai-global`,Number(env.AI_DAILY_LIMIT)||100,86400);
- // An initial trial is free; the IP guard prevents creating endless anonymous trial accounts.
- if(account.promo_credits_remaining>0){
+ const paid=Number(account.paid_credits)>0;
+ // Check credits before counting toward shared limits, so empty accounts cannot use up the day's trials.
+ if(!paid&&!(Number(account.promo_credits_remaining)>0))throw problem('No available AI credit, or a generation is already running.',402);
+ await rate(env.DB,`ai-account:${account.id}`,paid?20:6,3600);
+ // An initial trial is free; the IP guard prevents creating endless anonymous trial accounts. Paying accounts skip it.
+ if(!paid){
   const identity=`${ipHash}:${new Date().toISOString().slice(0,10)}`;
   await env.DB.prepare('INSERT OR IGNORE INTO trial_claims(identity_hash,account_id) VALUES(?,?)').bind(identity,account.id).run();
   const claim=await env.DB.prepare('SELECT account_id FROM trial_claims WHERE identity_hash=?').bind(identity).first();
   if(claim.account_id!==account.id)throw problem('The free AI trial has already been used on this connection today. The manual studio stays free.',429);
+ }
+ // Trials and paid work have separate daily ceilings, so free use can never block a paying customer.
+ try{await rate(env.DB,paid?'ai-paid':'ai-trial',paid?dailyLimit(env.AI_PAID_DAILY_LIMIT,1000):dailyLimit(env.AI_TRIAL_DAILY_LIMIT,100),86400);}
+ catch(error){
+  if(error.status!==429)throw error;
+  await track(env.DB,paid?'ai_paid_cap_hit':'ai_trial_cap_hit');
+  throw problem(paid?'AI artwork is very busy right now. No credit was used. Please try again a little later.':'Today’s free AI trials are all used up. Try again tomorrow, or keep creating in the free studio.',429);
  }
  account=await profile(env.DB,account,{displayName:input.kidName,acceptTerms:fromPhoto&&input.acceptTerms,acceptPrivacy:fromPhoto&&input.acceptPrivacy,photoParentConsent:fromPhoto&&input.photoParentConsent});
  let reserved=false;
@@ -50,7 +71,9 @@ export async function generateArtwork(request,env,account,input,fromPhoto,ipHash
    const answer=await env.AI.run(env.AI_TEXT_MODEL,{messages:[{role:'system',content:'Invent an original friendly fantasy trading-card character for children. Return only JSON with name (max 24 characters), attack (max 30), ability (max 100). No known franchise names.'},{role:'user',content:`A ${color} ${animal} with ${power} powers.`}],max_tokens:180});
    const raw=typeof answer.response==='string'?answer.response:'';text=JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0]||'{}');
   }catch{/* Editable starter text remains available. */}
-  const card=normalizeCard({name:fromPhoto?clean(input.cardTitle,24)||'My little legend':text.name||`${color} ${animal}`,type:fromPhoto?'Psychic':powers[power],attack:text.attack||'A little everyday magic',ability:text.ability||'A one-of-a-kind companion with a story only you can tell.',trainer:account.display_name||'You',hp:90,damage:40,source:'ai',generationId:requestId,art:`/api/card/art/${requestId}`,artWidth:1024,artHeight:1024,layout:fromPhoto?'fullart':'classic',finish:'holo'});
+  let title=fromPhoto?clean(input.cardTitle,24):'';
+  if([text.name,text.attack,text.ability,title].some(franchiseName)){text={};title='';await track(env.DB,'franchise_name_blocked');}
+  const card=normalizeCard({name:fromPhoto?title||'My little legend':text.name||`${color} ${animal}`,type:fromPhoto?'Psychic':powers[power],attack:text.attack||'A little everyday magic',ability:text.ability||'A one-of-a-kind companion with a story only you can tell.',trainer:account.display_name||'You',hp:90,damage:40,source:'ai',generationId:requestId,art:`/api/card/art/${requestId}`,artWidth:1024,artHeight:1024,layout:fromPhoto?'fullart':'classic',finish:'holo'});
   const key=`generated/${account.id}/${requestId}`;
   await env.ARTWORK.put(key,bytes,{httpMetadata:{contentType:mime}});
   await complete(env.DB,account,requestId,fromPhoto?'photo':'design',key,card);

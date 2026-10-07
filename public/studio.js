@@ -22,6 +22,12 @@
   let challengeIndex = 0;
   const choose = (list) => list[Math.floor(Math.random() * list.length)];
   const makeId = () => `card_${crypto.randomUUID().replace(/-/g, '')}`;
+  // Aggregate feature counts: only an event name is sent, never card text, names or photos. Once per page load.
+  const tracked = new Set();
+  function track(name) {
+    if (tracked.has(name)) return; tracked.add(name);
+    try { navigator.sendBeacon?.(`/api/event?e=${name}`); } catch { /* Counting must never interrupt creating. */ }
+  }
 
   function toast(message, duration = 3500) {
     const el = $('#toast');
@@ -30,6 +36,7 @@
   }
   function showDialog(id) {
     const dialog = $(id); if (!dialog.open) dialog.showModal();
+    if (id === '#account-dialog') track('credits_open');
   }
   function closeDialog(id) { $(id)?.close(); }
   function filename(name) { return (name || 'my-card').replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 45) || 'my-card'; }
@@ -96,6 +103,7 @@
     if (record) remember();
     card = normalizeCard({ ...card, ...patch });
     render(sync); persistDraft();
+    if (initialized) track('edit');
   }
   function render(sync = true) {
     if (!preview) return;
@@ -142,7 +150,7 @@
       const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
       photoArt = { art: canvas.toDataURL('image/jpeg', .88), artWidth: canvas.width, artHeight: canvas.height };
       update({ ...photoArt, source:'photo', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
-      toast('Your photo is in. Give your little legend a name.');
+      toast('Your photo is in. Give your little legend a name.'); track('photo');
     } catch (e) { error.textContent = e.message; }
     finally { $('#photo-input').value = ''; }
   }
@@ -170,7 +178,7 @@
     if (exportBusy) return;
     exportBusy = true; const snapshot = { ...card };
     const button = $('[data-action="download"]'); if (button) button.disabled = true;
-    try { download(await cardPng(snapshot), `${filename(snapshot.name)}-card.png`); toast('Your card is ready. Print it, share it, keep it.'); }
+    try { download(await cardPng(snapshot), `${filename(snapshot.name)}-card.png`); toast('Your card is ready. Print it, share it, keep it.'); track('png'); }
     catch (e) { toast(e.message); }
     finally { exportBusy = false; if (button) button.disabled = false; }
   }
@@ -183,7 +191,7 @@
       const js = `const stage=document.querySelector('.stage'),card=document.querySelector('.trading-card');let flat=matchMedia('(prefers-reduced-motion: reduce)').matches;function tilt(x,y){card.style.setProperty('--rx',((.5-y)*18)+'deg');card.style.setProperty('--ry',((x-.5)*22)+'deg');card.style.setProperty('--mx',(x*100)+'%');card.style.setProperty('--my',(y*100)+'%')}function flip(){card.classList.toggle('is-flipped')}stage.addEventListener('pointermove',e=>{if(flat)return;const r=stage.getBoundingClientRect();tilt(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)))});stage.addEventListener('pointerleave',()=>tilt(.5,.5));stage.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='f'){e.preventDefault();flip()}if(!flat&&e.key.startsWith('Arrow')){e.preventDefault();tilt(e.key==='ArrowLeft'?.1:e.key==='ArrowRight'?.9:.5,e.key==='ArrowUp'?.1:e.key==='ArrowDown'?.9:.5)}});document.querySelector('#flip').onclick=flip;const mode=document.querySelector('#flat');function label(){mode.textContent=flat?'Try 3D':'Use 2D';mode.setAttribute('aria-pressed',String(flat))}mode.onclick=()=>{flat=!flat;tilt(.5,.5);label()};label();`;
       const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${esc(snapshot.name)} — My little legend</title><style>${css}</style></head><body><h1>${esc(snapshot.name)}</h1><p>Made by ${esc(snapshot.trainer)}. A little imagination, all their own.</p><div class="stage" tabindex="0" role="group" aria-label="Interactive card. Arrow keys tilt, F flips.">${markup}</div><div class="actions"><button id="flip">Flip card</button><button id="flat">Use 2D</button><a href="https://www.diypokecard.com/">Make your own ↗</a></div><p>Move across the card to catch the light.<br>On a keyboard: arrow keys to tilt, F to flip.</p><p class="small">An independent fan-made keepsake. Not an official Pokémon card.</p><script>${js}</script></body></html>`;
       download(new Blob([html], { type: 'text/html' }), `${filename(snapshot.name)}-interactive.html`);
-      toast('Interactive card saved. Open the HTML in a browser to tilt and flip.');
+      toast('Interactive card saved. Open the HTML in a browser to tilt and flip.'); track('keepsake');
     } catch (e) { toast(e.message); } finally { exportBusy = false; }
   }
   async function saveCard(input = card) {
@@ -191,7 +199,7 @@
     const exists = collection.some(c => c.id && c.id === input.id);
     if (collection.length >= 60 && !exists) throw new Error('Your local collection has 60 cards. Back it up and remove a card to make room.');
     const saved = normalizeCard({ ...input, id: input.id || makeId(), art: await embeddedArt(input) });
-    await dbWrite('cards', saved); await loadCollection();
+    await dbWrite('cards', saved); await loadCollection(); track('save');
     if (input === card) { card = { ...saved }; persistDraft(); }
     return saved;
   }
@@ -213,7 +221,7 @@
   }
   function surprise() {
     const base = choose(TEMPLATES), next = normalizeCard({ ...base, name: choose(randomNames), attack: choose(randomMoves), type: choose(Object.keys(TYPES)), hp: choose([60,70,80,90,100,110]), damage: choose([20,30,40,50,60]), finish: choose(['matte','holo','cosmic']), layout: choose(['classic','fullart']), trainer: card.trainer });
-    reveal(next);
+    reveal(next); track('surprise');
   }
   async function backup() {
     await loadCollection();
@@ -298,7 +306,7 @@
       try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* The downloaded artwork remains in the current draft. */ }
     } catch (e) {
       $('#ai-error').textContent = e.message;
-      if (pendingGeneration?.request && [400,402,410,413,415,502,503].includes(e.status)) {
+      if (pendingGeneration?.request && [400,402,410,413,415,429,502,503].includes(e.status)) {
         pendingGeneration = null;
         try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* Clear the in-memory request too. */ }
       }
@@ -340,7 +348,7 @@
     let style = $('#paper-style'); if (!style) { style = document.createElement('style'); style.id = 'paper-style'; document.head.append(style); }
     style.textContent = `@page{size:${paper === 'letter' ? 'letter' : 'A4'} portrait;margin:5mm}`;
     await Promise.all([...root.querySelectorAll('image')].map(el=>imageFrom(el.getAttribute('href'))));
-    window.print();
+    track('print'); window.print();
   }
   async function printSelection() {
     await loadCollection();
@@ -411,7 +419,7 @@
         case 'start-from-collection':closeDialog('#collection-dialog');if(preview)$('#studio').scrollIntoView();else location.href='/studio';break;
         case 'print-collection':if(!collection.length){toast('Keep a card before printing your collection.');break;}closeDialog('#collection-dialog');await printCards(collection);break;
         case 'print-sheet':await printCards(await printSelection(),$('#paper-size').value);break;
-        case 'duel':renderDuel(true);break;
+        case 'duel':renderDuel(true);track('duel');break;
         case 'generate':await generate();break;
         case 'email-card':{
           const email=$('#account-email').value;

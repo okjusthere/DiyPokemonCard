@@ -65,10 +65,24 @@ Checkout uses this site's name, icon and colors through session-level branding. 
 - Image requests require the owner’s HttpOnly session; private API responses are never cached.
 - Account sign-in links expire after 20 minutes, use hashed single-use secrets and require a confirmation POST so mail scanners do not consume them.
 - D1 atomic batches reserve/refund credits. Browser recovery saves the request ID before inference and reuses it after a lost response.
-- Promotional trials have a per-connection daily guard; paid accounts have a higher hourly generation limit. Initial global inference ceiling is 100 requests/day. Adjust `AI_DAILY_LIMIT` deliberately as traffic grows.
+- Promotional trials have a per-connection daily guard; paid accounts have a higher hourly generation limit. Trials and paid generations use separate daily ceilings, `AI_TRIAL_DAILY_LIMIT` (100) and `AI_PAID_DAILY_LIMIT` (1,000), so free use cannot block a paying customer. Accounts without credits are rejected before they count toward either ceiling. The trial ceiling is the free-cost budget; the paid ceiling is only a runaway guard. Watch the cap-hit lines in the weekly report before raising either.
 - The scheduled recovery job clears expired session/token/rate-limit data. Source photo uploads are not retained by the application after inference; generated images persist until account deletion. Do not describe local backups as server backups.
 - R2 is private; never enable public bucket access to simplify previews.
 - Payment refunds/disputes are handled operationally in Stripe; automatic refund-driven credit revocation is not implemented. Review unused credits when processing refunds.
+
+## Analytics and weekly report
+
+Migration `0002_analytics.sql` adds aggregate, cookie-free counting. The Worker counts human page navigations (browser `Sec-Fetch-Dest: document`, excluding known bots and prefetches), daily unique visitors, landing pages and referrer categories (search, social, AI assistant, direct, other). The studio sends `navigator.sendBeacon` events to `POST /api/event?e=<name>` for a fixed list of feature names: edit, photo, save, png, keepsake, print, credits_open, surprise and duel. Each event name counts at most once per page load. The endpoint runs before session handling, so beacons never create anonymous accounts. Visitor hashes use a random per-day salt; both are deleted after two days, leaving only daily totals in `daily_metrics`. AI cap hits and blocked franchise names are counted too.
+
+Every Monday at 13:00 UTC (`0 13 * * 1`), the Worker emails a Chinese-language summary of the previous Monday–Sunday (UTC) compared with the week before. It covers traffic, the creation funnel, trial and paid generations, failures, cap hits, checkouts, revenue and estimated contribution. Set the recipient as a secret so the address stays out of Git:
+
+```sh
+npx wrangler secret put REPORT_EMAIL
+```
+
+Without `REPORT_EMAIL` the report is skipped. For an on-demand look at the last seven days of counts, run `npm run stats`.
+
+AI-generated card text and photo-mode titles that contain well-known franchise names fall back to original text. Creature generation only accepts fixed menu options, so its prompt cannot carry a name. A photo of a franchise toy is still restyled as photographed; that is a known gap.
 
 ## Rollback
 

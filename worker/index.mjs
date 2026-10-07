@@ -2,6 +2,8 @@ import { hash, uid, clean, emailOf, validEmail, problem, sessionFor, issueSessio
 import { checkout, webhook, stripeClient, finalize, validPurchase, plans } from './billing.mjs';
 import { sendAccessEmail, restorePage } from './email.mjs';
 import { generateArtwork } from './ai.mjs';
+import { clientEvents, isHumanPageview, recordPageview, pruneVisitors, track } from './metrics.mjs';
+import { sendWeeklyReport, WEEKLY_CRON } from './report.mjs';
 const pages=new Set(['/pricing','/studio','/photo-card-maker','/holographic-card-maker','/printable-trading-cards','/card-ideas','/make-a-card-game']);
 const cookie=(token,secure=true)=>`dpc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure?'; Secure':''}`;
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8'}});
@@ -26,6 +28,12 @@ async function api(request,env,ctx){
   const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!==env.BASE_URL)throw problem('Please use the form on this website.',403);
  }
  const ipHash=await hash(request.headers.get('cf-connecting-ip')||'local');
+ // Feature counts are handled before sessions so a beacon never creates an anonymous account.
+ if(path==='/api/event'&&request.method==='POST'){
+  const name=url.searchParams.get('e');if(!clientEvents.has(name))throw problem('Unknown event.');
+  await rate(env.DB,`event:${ipHash}`,300,3600);await track(env.DB,`ui:${name}`);
+  return new Response(null,{status:204});
+ }
  if(path==='/api/account/restore/consume'){
   if(request.method==='GET')return new Response(restorePage(url),{headers:{'content-type':'text/html; charset=utf-8'}});
   if(request.method==='POST'){
@@ -92,13 +100,18 @@ export default {
    const assetURL=new URL(request.url);assetURL.pathname=target;
    let response=await env.ASSETS.fetch(new Request(assetURL,request));
    if(response.status===404){assetURL.pathname='/404.html';response=await env.ASSETS.fetch(new Request(assetURL));response=new Response(response.body,{status:404,headers:response.headers});}
-   response=secure(response);if(response.headers.get('content-type')?.includes('text/html'))response.headers.set('cache-control','no-cache');
+   response=secure(response);if(response.headers.get('content-type')?.includes('text/html')){
+    response.headers.set('cache-control','no-cache');
+    if(response.status===200&&env.DB&&isHumanPageview(request))ctx?.waitUntil?.(recordPageview(request,env,url.pathname));
+   }
    return response;
   }catch(error){if(!error.status)console.error('Worker failure',error.name);return secure(json({error:error.status?error.message:'The studio service is temporarily unavailable.'},error.status||500),true);}
  },
- async scheduled(_event,env){
+ async scheduled(event,env){
+  if(event?.cron===WEEKLY_CRON){await sendWeeklyReport(env);return;}
   const stale=await env.DB.prepare("SELECT request_id FROM generation_attempts WHERE status='reserved' AND created_at<datetime('now','-20 minutes') LIMIT 100").all();
   for(const row of stale.results)await refund(env.DB,row.request_id);
   await env.DB.batch([env.DB.prepare("DELETE FROM trial_claims WHERE claimed_at<datetime('now','-2 days')"),env.DB.prepare('DELETE FROM rate_limits WHERE expires_at<?').bind(Math.floor(Date.now()/1000)),env.DB.prepare("DELETE FROM auth_tokens WHERE expires_at<datetime('now','-1 day')"),env.DB.prepare("DELETE FROM sessions WHERE last_seen_at<datetime('now','-60 days')")]);
+  await pruneVisitors(env.DB);
  }
 };
