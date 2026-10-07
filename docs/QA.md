@@ -52,3 +52,14 @@ Screenshots are in `docs/screenshots/`. Browser fixtures use original artwork; n
 - Operational recovery from D1/R2 backups and sustained-load behavior.
 
 No Search Console sitemap submission or public photo gallery was performed. No traffic, ranking or retention improvement is claimed before measurement.
+
+## Inspiration update — 7 October 2026
+
+- Base: latest local/remote `100ecc9`. 27 automated tests passed, including six categories with two valid local assets/recipes each, SSR discovery links, prompt validation, safety-brief failures before image generation, credit refunds and idempotent recovery. Existing payment, access isolation, analytics and weekly-report regressions passed.
+- Real production API: 10 text-idea and 2 reference-drawing illustrations succeeded. All public outputs visually reviewed together. Provenance recorded in `gallery-provenance.json`; illustrations have not been retouched. AI details vary from requests.
+- Browser: homepage prompt chips and text handoff, category filter, editable example, drawing reference and unchecked consent, nickname edit, collection save, and prompt/reference recovery after reload verified. New example deep links are consumed after initialization so a refresh preserves edits.
+- Export: real browser PNG download `Sprout-Scout-card.png` inspected at 945 × 1320, with the correct new illustration and changed title. In-app browser download-event waiting timed out, but the UI completion message and the actual file in Downloads verified completion.
+- Responsive: 1280 × 900 desktop, 390 × 844 mobile and 320 × 740 narrow layout checked. No horizontal overflow at 390 or 320. Gallery thumbnails lazy-load, have explicit dimensions, and total gallery imagery (including card previews and sketches) is about 1.6 MB.
+- Production browser: custom teapot idea generated successfully, one credit consumed, reveal shown, and card saved. Trial balance restored to its original value after QA. All 12 examples, all 9 energy choices, theme filtering and restored balance verified on the deployed site. No browser errors observed.
+- SEO: indexable `/card-ideas` now contains the 12 actual ideas, sources/use guidance and ordinary edit links. Homepage and guide metadata, shared social preview and privacy description updated. No ranking or traffic outcome claimed.
+- Release: `099b8a9f-f453-4fee-bfe9-465219c87b98`. Screenshots: `screenshots/inspiration-home.png`, `screenshots/inspiration-gallery.png`.

@@ -21,7 +21,7 @@
   function number(value, fallback, min, max) { const parsed = Number(value); return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback; }
   function safeArt(value) {
     if (typeof value !== 'string') return TEMPLATES[0].art;
-    if (/^\/art\/(sparky|ember|bubbles)\.webp$/.test(value) || /^\/api\/card\/art\/gen_[a-f0-9]+$/.test(value)) return value;
+    if (/^\/art\/(sparky|ember|bubbles)\.webp$/.test(value) || /^\/api\/card\/art\/gen_[a-f0-9]+$/.test(value) || /^\/art\/examples\/(nova|birthday-hero|cinder-corgi|moonwhisk|sproutsaur|moonmoth|sir-broccoli|sundae-soar|copperbot|crystal-dragon|party-bunny|party-panda)\.webp$/.test(value)) return value;
     if (value.length < 7_000_000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return value;
     return TEMPLATES[0].art;
   }
@@ -34,6 +34,8 @@
       hp: Math.round(number(raw.hp, base.hp, 10, 300) / 10) * 10,
       attack: text(raw.attack, base.attack, 30), damage: Math.round(number(raw.damage, base.damage, 0, 200) / 10) * 10,
       ability: text(raw.ability, base.ability, 100), trainer: text(raw.trainer, 'You', 24),
+      prompt: text(raw.prompt, '', 400),
+      example: /^[a-z-]{1,40}$/.test(raw.example || '') ? raw.example : '',
       art: safeArt(raw.art || base.art),
       source: ['template', 'photo', 'ai'].includes(raw.source) ? raw.source : raw.generationId ? 'ai' : String(raw.art || '').startsWith('data:') ? 'photo' : 'template',
       artWidth: number(raw.artWidth, 750, 1, 10000), artHeight: number(raw.artHeight, 1000, 1, 10000),

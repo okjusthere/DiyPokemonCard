@@ -5,7 +5,7 @@ import {Miniflare, convertV4MiniflareOptions} from 'miniflare';
 import {uid, hash, getAccount, reserve, refund, complete, consumeToken, sessionFor} from '../worker/storage.mjs';
 import {validPurchase, finalize, webhook} from '../worker/billing.mjs';
 import worker from '../worker/index.mjs';
-import {generateArtwork, franchiseName} from '../worker/ai.mjs';
+import {generateArtwork, franchiseName, creativeIdea} from '../worker/ai.mjs';
 import {recordPageview, isHumanPageview, sourceOf} from '../worker/metrics.mjs';
 import {weeklyReport, sendWeeklyReport} from '../worker/report.mjs';
 let mf,db;
@@ -152,4 +152,25 @@ test('weekly report summarizes last week and emails only the configured owner',a
  assert.equal(await sendWeeklyReport({DB:db,EMAIL_ENABLED:'true',EMAIL:email},now),false);
  assert.equal(await sendWeeklyReport({DB:db,EMAIL_ENABLED:'true',EMAIL:email,REPORT_EMAIL:'owner@example.com'},now),true);
  assert.equal(sent.length,1);assert.equal(sent[0].to,'owner@example.com');assert.equal(sent[0].subject,report.subject);
+});
+
+test('custom ideas validate input, preserve non-creature subjects, and recover without another call',async()=>{
+ await db.prepare('DELETE FROM rate_limits').run();
+ for(const bad of [null,{},'tiny','x'.repeat(401),'Pikachu having a picnic'])assert.throws(()=>creativeIdea(bad));
+ assert.equal(creativeIdea('  A broccoli knight in a garden  '),'A broccoli knight in a garden');
+ const a=await account(),data={requestId:uid('gen'),prompt:'A friendly broccoli knight in a garden'};let imageCalls=0,briefCalls=0;
+ const env=aiEnv({AI:{async run(model,input){if(model==='text'){briefCalls++;assert.match(input.messages[1].content,/broccoli/);return {response:{safe:true,description:'A friendly broccoli knight with a leaf cape in a garden',name:'Sir Broccoli',attack:'Garden guard',ability:'Protects the smallest sprouts.',type:'Grass'}};}imageCalls++;const form=await new Response(input.multipart.body,{headers:{'content-type':input.multipart.contentType}}).formData();assert.match(form.get('prompt'),/broccoli knight/);return {image:PNG};}}});
+ const result=await generateArtwork(null,env,a,data,false,uid('ip'));
+ assert.equal(result.cardData.type,'Grass');assert.equal(result.cardData.prompt,data.prompt);assert.equal(result.cardData.name,'Sir Broccoli');
+ await generateArtwork(null,env,await getAccount(db,a.id),data,false,uid('ip'));
+ assert.equal(imageCalls,1);assert.equal(briefCalls,1);
+});
+test('rejected or malformed idea briefs never reach image generation and refund the credit',async()=>{
+ await db.prepare('DELETE FROM rate_limits').run();
+ for(const response of ['{"safe":false}','{"description":"Missing safety result"}','not json','{"safe":true,"description":"Pikachu in a park"}']){
+  const a=await account();let images=0;
+  const env=aiEnv({AI:{async run(model){if(model==='text')return {response};images++;return {image:PNG};}}});
+  await assert.rejects(generateArtwork(null,env,a,{requestId:uid('gen'),prompt:'An original little garden friend'},false,uid('ip')),e=>[400,503].includes(e.status));
+  assert.equal(images,0);assert.equal((await getAccount(db,a.id)).promo_credits_remaining,1);
+ }
 });

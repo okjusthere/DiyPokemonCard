@@ -87,3 +87,21 @@ test('HTTP: public routes, real 404s, private AI artwork, and honest capabilitie
   assert.equal((await fetch(origin + '/api/card/art/not-a-generation', {headers:{cookie}})).status,400);
   assert.equal((await fetch(origin + '/api/ai/pokemon-create',{method:'POST',headers:{cookie,'Content-Type':'application/json'},body:'{}'})).status,503);
 });
+
+test('gallery recipes remain editable, local, and discoverable without JavaScript', () => {
+  const { categories, examples } = require('../public/examples');
+  const fs = require('node:fs'), path = require('node:path');
+  assert.equal(new Set(examples.map(e=>e.slug)).size, 12);
+  const home = site.home(), guide = site.article('/card-ideas');
+  for (const category of categories) assert.equal(examples.filter(e=>e.category===category.id).length, 2);
+  for (const example of examples) {
+    const card = normalizeCard(example);
+    assert.equal(card.art, example.art); assert.equal(card.prompt, example.prompt);
+    assert.ok(fs.existsSync(path.join(__dirname, '../public', card.art)));
+    assert.ok(fs.existsSync(path.join(__dirname, `../public/art/examples/cards/${example.slug}.webp`)));
+    assert.ok(home.includes(`/studio?example=${example.slug}`)); assert.ok(guide.includes(`/studio?example=${example.slug}`));
+    assert.equal(card.generationId, '');
+  }
+  for (const art of ['/art/examples/../../private.webp','/art/examples/unknown.webp','https://evil.example/nova.webp']) assert.equal(normalizeCard({art}).art,TEMPLATES[0].art);
+  assert.equal(normalizeCard({prompt:'x'.repeat(900)}).prompt.length,400);
+});

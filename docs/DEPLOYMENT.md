@@ -2,7 +2,7 @@
 
 Canonical site: https://diypokecard.com. `www` redirects to the apex for public pages. APIs remain reachable on both hostnames for webhook compatibility.
 
-Current verified release: `7310f98c-8ccf-4fb5-a282-7f1c3b5c6f70` (analytics, weekly report, separate AI trial cap; migration `0002_analytics.sql` applied). The previous release without analytics is `7e18ef14-a44e-43e3-a25d-5bcabad10672`. AI, email and payments are enabled.
+Current verified release: `099b8a9f-f453-4fee-bfe9-465219c87b98` (twelve real-model examples, free-text ideas, drawing reference flow, new ideas guide and social preview). Based on latest commit `100ecc9`; analytics, weekly reports and separate trial/paid ceilings are preserved. No schema migration was needed; `0002_analytics.sql` remains applied. Previous verified analytics release: `7310f98c-8ccf-4fb5-a282-7f1c3b5c6f70`. AI, email and payments are enabled.
 
 ## Cloudflare resources
 
@@ -72,7 +72,7 @@ Checkout uses this site's name, icon and colors through session-level branding. 
 
 ## Analytics and weekly report
 
-Migration `0002_analytics.sql` adds aggregate, cookie-free counting. The Worker counts human page navigations (browser `Sec-Fetch-Dest: document`, excluding known bots and prefetches), daily unique visitors, landing pages and referrer categories (search, social, AI assistant, direct, other). The studio sends `navigator.sendBeacon` events to `POST /api/event?e=<name>` for a fixed list of feature names: edit, photo, save, png, keepsake, print, credits_open, surprise and duel. Each event name counts at most once per page load. The endpoint runs before session handling, so beacons never create anonymous accounts. Visitor hashes use a random per-day salt; both are deleted after two days, leaving only daily totals in `daily_metrics`. AI cap hits and blocked franchise names are counted too.
+Migration `0002_analytics.sql` adds aggregate, cookie-free counting. The Worker counts human page navigations (browser `Sec-Fetch-Dest: document`, excluding known bots and prefetches), daily unique visitors, landing pages and referrer categories (search, social, AI assistant, direct, other). The studio sends `navigator.sendBeacon` events to `POST /api/event?e=<name>` for a fixed list of feature names: edit, photo, save, png, keepsake, print, credits_open, surprise, duel, idea_start, example_remix and ideas_filter. Each event name counts at most once per page load. The endpoint runs before session handling, so beacons never create anonymous accounts. Visitor hashes use a random per-day salt; both are deleted after two days, leaving only daily totals in `daily_metrics`. AI cap hits and blocked franchise names are counted too.
 
 Every Monday at 13:00 UTC (`0 13 * * 1`), the Worker emails a Chinese-language summary of the previous Monday–Sunday (UTC) compared with the week before. It covers traffic, the creation funnel, trial and paid generations, failures, cap hits, checkouts, revenue and estimated contribution. Set the recipient as a secret so the address stays out of Git:
 
@@ -82,8 +82,14 @@ npx wrangler secret put REPORT_EMAIL
 
 Without `REPORT_EMAIL` the report is skipped. For an on-demand look at the last seven days of counts, run `npm run stats`.
 
-AI-generated card text and photo-mode titles that contain well-known franchise names fall back to original text. Creature generation only accepts fixed menu options, so its prompt cannot carry a name. A photo of a franchise toy is still restyled as photographed; that is a known gap.
+AI-generated card text and photo-mode titles that contain well-known franchise names fall back to original text. Custom ideas accept 8–400 characters, reject known franchise names, and require a valid family-friendly JSON brief before image generation. Invalid or rejected briefs refund the reservation. The parser supports Workers AI object responses, string JSON and OpenAI-style choices; structured JSON output is requested. Legacy menu-option requests still work. A photo of a franchise toy is still restyled as photographed; that is a known gap.
 
 ## Rollback
 
 Use `wrangler deployments list` and `wrangler rollback <version-id>` for Worker code/config. D1 and R2 data are not rolled back with code. Keep schema changes additive and verify compatibility before rollback. The initial verified pre-payment version is `774cf85e-d67f-4279-a9f5-7211be9428e3`.
+
+## Inspiration release verification
+
+Released from the latest `100ecc9` base on 7 October 2026. All 27 tests pass. Production pages and www redirect were checked; all 24 public illustration/card-thumbnail assets matched local bytes and both source sketches returned successfully. AI, AI photo and payments capabilities remained enabled. A separate live browser check generated a new original “TeaPet” idea, displayed the reveal and saved it to the local collection. Its single free trial credit was restored after the check; that one successful trial remains in operational generation counts. No payment was charged and no emails were sent during this release.
+
+The disposable gallery QA account, its synthetic credit ledger/attempts and 12 private R2 objects were removed after backup and publication. This keeps internal gallery production out of customer paid-generation totals. Public gallery images and provenance remain in Git; verified original outputs and a QA data backup remain locally under ignored `.deployment-private/`. Existing customer accounts, payments, secrets, weekly recipient, rate-limit configuration and cron schedules were preserved.

@@ -1,6 +1,6 @@
 import { hash } from './storage.mjs';
 // Aggregate, cookie-free counts. Never pass photos, card text, names, emails or prompts to these helpers.
-export const clientEvents=new Set(['edit','photo','save','png','keepsake','print','credits_open','surprise','duel']);
+export const clientEvents=new Set(['edit','photo','save','png','keepsake','print','credits_open','surprise','duel','idea_start','example_remix','ideas_filter']);
 const landingPages=new Set(['/','/studio','/pricing','/photo-card-maker','/holographic-card-maker','/printable-trading-cards','/card-ideas','/make-a-card-game']);
 // Order matters: AI assistants on google.com must not be counted as search.
 const sources=[

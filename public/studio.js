@@ -5,6 +5,7 @@
   const $ = (selector, parent = document) => parent.querySelector(selector);
   const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
   const preview = $('#preview-card');
+  const {examples = [], categories = []} = window.PokeExamples || {};
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let card = normalizeCard(TEMPLATES[0]), mode = 'pal', view = reducedMotion.matches ? '2d' : '3d';
   let collection = [], undo = [], redo = [], flipped = false, initialized = false;
@@ -91,7 +92,7 @@
     clearTimeout(saveTimer);
     $('#draft-state').textContent = 'Saving on this browser…';
     saveTimer = setTimeout(async () => {
-      const draft = { card: { ...card }, mode, view };
+      const draft = { card: { ...card }, mode, view, aiKind: $('#ai-kind').value, referencePhoto: photoArt };
       try { await dbWrite('settings', draft, 'draft'); if (sequence === draftSequence) $('#draft-state').textContent = 'Saved on this browser'; }
       catch { $('#draft-state').textContent = 'Download to keep your work'; }
     }, 350);
@@ -115,11 +116,13 @@
     $$('[data-type]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.type === card.type)));
     $$('[data-layout]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.layout === card.layout)));
     $$('button[data-finish]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.finish === card.finish)));
-    $$('[data-template]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.template === card.key && !card.art.startsWith('data:') && !card.generationId)));
+    $$('[data-template]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.template === card.key && card.art === TEMPLATES.find(t => t.key === card.key)?.art && !card.generationId)));
     $$('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
     $('#selected-type').textContent = card.type;
     $('#undo-button').disabled = !undo.length; $('#redo-button').disabled = !redo.length;
     $('#crop-controls').hidden = !photoArt;
+    $('#ai-reference-card').hidden = !photoArt;
+    if (photoArt) $('#ai-reference-image').src = photoArt.art;
     $('#email-card-section').hidden = !(card.generationId && session?.restoreAvailable);
     $('#preview-hint').lastChild.textContent = view === '3d' ? ' Move across your card. Catch a little sparkle.' : ' A clear, steady view of your creation.';
   }
@@ -137,6 +140,46 @@
     if (scroll) $('#studio').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth' });
   }
 
+  function focusIdea() {
+    changeMode('ai'); $('#ai-kind').value = 'creature';
+    $('#ai-creature-fields').hidden = false; $('#ai-photo-fields').hidden = true;
+    updateSessionUI();
+    $('#studio').scrollIntoView({behavior:'instant'});
+    $('#ai-prompt').focus({preventScroll:true});
+  }
+  async function chooseExample(slug, scroll = true) {
+    const example = examples.find(e => e.slug === slug); if (!example) return;
+    if (!preview) { location.href = `/studio?example=${encodeURIComponent(slug)}`; return; }
+    if (busy || pendingGeneration) { toast('Finish or recover your current artwork before starting another idea.'); return; }
+    remember(); card = normalizeCard(example); photoArt = null; flipped = false;
+    changeMode('ai'); render(); persistDraft();
+    $('#ai-kind').value = 'creature'; $('#ai-creature-fields').hidden = false; $('#ai-photo-fields').hidden = true;
+    if (example.category==='drawings') await loadExampleReference(example);
+    updateSessionUI(); if (scroll) {$('#studio').scrollIntoView({behavior:'instant'});$('#ai-prompt').focus({preventScroll:true});}
+    track('example_remix');
+    if (scroll) toast('Your starting card is ready. Edit freely; Generate makes new artwork for 1 credit.', 5000);
+  }
+  async function loadExampleReference(example) {
+    try {
+      const response=await fetch(`/art/examples/${example.slug}-sketch.png`);
+      if(!response.ok)throw new Error('The sample sketch could not load. Add your own picture in My photo.');
+      const art=await blobData(await response.blob());
+      if(card.example!==example.slug)return;
+      photoArt={art,artWidth:480,artHeight:480};
+      $('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;
+      $('#ai-photo-consent').checked=false;render();persistDraft();
+    } catch(e) { toast(e.message); }
+  }
+  function startIdea(idea) {
+    if (busy || pendingGeneration) { toast('Finish or recover your current artwork before starting another idea.'); return; }
+    if (!preview) return;
+    update({prompt:idea}); focusIdea(); track('idea_start');
+    toast('Your idea is ready in the studio. Press Generate when you’re happy with it.');
+  }
+  $('#idea-start-form')?.addEventListener('submit', event => {
+    event.preventDefault(); startIdea($('#hero-idea').value.trim());
+  });
+
   async function readPhoto(file) {
     if (!file) return;
     const error = $('#photo-error'); error.textContent = '';
@@ -149,7 +192,8 @@
       const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
       const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
       photoArt = { art: canvas.toDataURL('image/jpeg', .88), artWidth: canvas.width, artHeight: canvas.height };
-      update({ ...photoArt, source:'photo', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
+      $('#ai-photo-consent').checked=false;
+      update({ ...photoArt, source:'photo', example:'', prompt:'', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
       toast('Your photo is in. Give your little legend a name.'); track('photo');
     } catch (e) { error.textContent = e.message; }
     finally { $('#photo-input').value = ''; }
@@ -277,6 +321,8 @@
     $('#ai-error').textContent = '';
     if (!pendingGeneration && !session?.account?.totalCredits) { showDialog('#account-dialog'); return; }
     const fromPhoto = $('#ai-kind').value === 'photo';
+    const idea = $('#ai-prompt').value.trim();
+    if (!pendingGeneration && ((!fromPhoto && idea.length < 8) || (idea && idea.length < 8))) { $('#ai-error').textContent = 'Describe your idea in at least 8 characters, or use the creature ingredients below.'; $('#ai-prompt').focus(); return; }
     if (!pendingGeneration && fromPhoto && !photoArt) { $('#ai-error').textContent = 'Add a picture in My photo first, then return here.'; return; }
     if (!pendingGeneration && fromPhoto && !$('#ai-photo-consent').checked) { $('#ai-error').textContent = 'An adult needs to confirm photo permission before AI processing.'; return; }
     busy = true; updateSessionUI(); $('#generate-button').textContent = pendingGeneration ? 'Recovering your artwork…' : 'Imagining your new character…';
@@ -284,6 +330,7 @@
     try {
       if (!pendingGeneration) {
         const data = fromPhoto ? { photo: await aiPhotoData(photoArt.art), kidName: card.trainer, cardTitle: card.name, cardStyle: card.layout === 'fullart' ? 'fullart' : 'supporter', acceptTerms: true, acceptPrivacy: true, photoParentConsent: true } : { kidName: card.trainer, color: $('#ai-color').value, animal: $('#ai-animal').value, power: $('#ai-power').value };
+        if (idea) data.prompt = idea;
         data.requestId = `gen_${crypto.randomUUID().replaceAll('-', '')}`;
         pendingGeneration = { before, request: { path: fromPhoto ? '/api/ai/pokemon-from-photo' : '/api/ai/pokemon-create', data } };
         try { await dbWrite('settings', pendingGeneration, 'pending-generation'); } catch { /* Keep the retry ID in memory when local storage is unavailable. */ }
@@ -300,7 +347,7 @@
       if (!artResponse.ok) throw new Error('Your artwork was created but could not be loaded. Use Recover my artwork to try again without spending another credit.');
       const art = await blobData(await artResponse.blob()), image = await imageFrom(art);
       const d = result.cardData, t = result.trainerData;
-      const next = normalizeCard({ ...before, ...(d || {}), source:'ai', id: '', name: d?.name || t?.title || before.name, type: d?.type || before.type, hp: d?.hp || before.hp, attack: d?.attack || d?.attack1?.name || 'A little everyday magic', damage: d?.damage ?? d?.attack1?.damage ?? 40, ability: d?.ability || d?.flavor || t?.effect || before.ability, generationId: result.generationId, art, artWidth: image.width, artHeight: image.height, zoom: 1, offsetX: 50, offsetY: 50 });
+      const next = normalizeCard({ ...before, ...(d || {}), source:'ai', example:'', id: '', name: d?.name || t?.title || before.name, type: d?.type || before.type, hp: d?.hp || before.hp, attack: d?.attack || d?.attack1?.name || 'A little everyday magic', damage: d?.damage ?? d?.attack1?.damage ?? 40, ability: d?.ability || d?.flavor || t?.effect || before.ability, generationId: result.generationId, art, artWidth: image.width, artHeight: image.height, zoom: 1, offsetX: 50, offsetY: 50 });
       remember(); card = next; render(); persistDraft(); reveal(next, 'Your imagination came to life.');
       pendingGeneration = null;
       try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* The downloaded artwork remains in the current draft. */ }
@@ -383,6 +430,19 @@
   document.addEventListener('click', async event => {
     const target = event.target.closest('button,a'); if (!target) return;
     try {
+      if (target.dataset.example) { event.preventDefault(); await chooseExample(target.dataset.example); return; }
+      if (target.dataset.idea) {
+        const example=examples.find(e=>e.slug===target.dataset.idea); if(!example)return;
+        $('#hero-idea').value=example.prompt; $('#hero-idea').focus(); return;
+      }
+      if (target.dataset.category) {
+        const id=target.dataset.category, category=categories.find(c=>c.id===id);
+        if(id!=='all'&&!category)return;
+        $$('[data-category]').forEach(button=>button.setAttribute('aria-pressed',String(button===target)));
+        $$('[data-example-category]').forEach(tile=>tile.hidden=id!=='all'&&tile.dataset.exampleCategory!==id);
+        $('#gallery-description').textContent=category?category.description:'Twelve starting points. Every name, move, frame and finish is yours to change.';
+        track('ideas_filter'); return;
+      }
       if (target.dataset.close) { closeDialog('#'+target.dataset.close); return; }
       if (target.dataset.mode) { changeMode(target.dataset.mode); return; }
       if (target.dataset.template) { chooseTemplate(target.dataset.template); return; }
@@ -420,6 +480,8 @@
         case 'print-collection':if(!collection.length){toast('Keep a card before printing your collection.');break;}closeDialog('#collection-dialog');await printCards(collection);break;
         case 'print-sheet':await printCards(await printSelection(),$('#paper-size').value);break;
         case 'duel':renderDuel(true);track('duel');break;
+        case 'replace-reference':changeMode('photo');$('#upload-zone').scrollIntoView({behavior:'smooth',block:'center'});$('#photo-input').focus({preventScroll:true});break;
+        case 'build-idea':update({prompt:`An original ${$('#ai-color').value} ${$('#ai-animal').value} with ${$('#ai-power').value} powers, in a magical garden.`});$('#ai-prompt').focus();break;
         case 'generate':await generate();break;
         case 'email-card':{
           const email=$('#account-email').value;
@@ -457,17 +519,21 @@
     preview.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='f'){event.preventDefault();flipped=!flipped;$('.trading-card',preview).classList.toggle('is-flipped',flipped);}if(event.key.startsWith('Arrow')&&view==='3d'&&!reducedMotion.matches){event.preventDefault();tilt(event.key==='ArrowLeft'?.1:event.key==='ArrowRight'?.9:.5,event.key==='ArrowUp'?.1:event.key==='ArrowDown'?.9:.5);}});
     preview.addEventListener('focusout',()=>tilt());
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){view='2d';render();}});
-    $('#ai-kind').addEventListener('change',()=>{const fromPhoto=$('#ai-kind').value==='photo';$('#ai-creature-fields').hidden=fromPhoto;$('#ai-photo-fields').hidden=!fromPhoto;updateSessionUI();});
-    try{const draft=await dbRead('settings','draft');if(draft?.card){card=normalizeCard(draft.card);mode=['pal','photo','ai'].includes(draft.mode)?draft.mode:'pal';view=!reducedMotion.matches&&draft.view==='3d'?'3d':'2d';}}catch{ /* Downloads remain available when local storage is disabled. */ }
+    $('#ai-kind').addEventListener('change',()=>{const fromPhoto=$('#ai-kind').value==='photo';$('#ai-creature-fields').hidden=fromPhoto;$('#ai-photo-fields').hidden=!fromPhoto;updateSessionUI();persistDraft();});
+    try{const draft=await dbRead('settings','draft');if(draft?.card){card=normalizeCard(draft.card);mode=['pal','photo','ai'].includes(draft.mode)?draft.mode:'pal';view=!reducedMotion.matches&&draft.view==='3d'?'3d':'2d';if(draft.referencePhoto){const ref=normalizeCard(draft.referencePhoto);if(ref.art.startsWith('data:'))photoArt={art:ref.art,artWidth:ref.artWidth,artHeight:ref.artHeight};}if(draft.aiKind==='photo'){$('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;}}}catch{ /* Downloads remain available when local storage is disabled. */ }
     try{const pending=await dbRead('settings','pending-generation');if(/^gen_[a-f0-9]{32}$/.test(pending?.result?.generationId||'')){pendingGeneration={before:normalizeCard(pending.before),result:pending.result};mode='ai';}else if(/^gen_[a-f0-9]{32}$/.test(pending?.request?.data?.requestId||'')&&['/api/ai/pokemon-create','/api/ai/pokemon-from-photo'].includes(pending.request.path)){pendingGeneration={before:normalizeCard(pending.before),request:pending.request};mode='ai';}}catch{ /* A pending download can still be retried in the current tab. */ }
     const params=new URLSearchParams(location.search),template=TEMPLATES.find(t=>t.key===params.get('template'));
-    if(template){card=normalizeCard(template);mode='pal';}
+    if(template&&!pendingGeneration){card=normalizeCard(template);mode='pal';}
     if(Object.hasOwn(TYPES,params.get('type')))card.type=params.get('type');
     if(params.get('attack'))card=normalizeCard({...card,attack:params.get('attack')});
     if(['matte','holo','cosmic'].includes(params.get('finish')))card.finish=params.get('finish');
     if(card.source==='photo')photoArt={art:card.art,artWidth:card.artWidth,artHeight:card.artHeight};
-    changeMode(params.get('mode')||mode);render();initialized=true;
-    if(['template','type','attack','finish','mode'].some(key=>params.has(key)))persistDraft();
+    const example=examples.find(e=>e.slug===params.get('example'));
+    if(example&&!pendingGeneration){card=normalizeCard(example);mode='ai';photoArt=null;$('#ai-kind').value='creature';$('#ai-creature-fields').hidden=false;$('#ai-photo-fields').hidden=true;if(example.category==='drawings')await loadExampleReference(example);}
+    if(pendingGeneration?.request?.path==='/api/ai/pokemon-from-photo'){$('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;}
+    changeMode(pendingGeneration?'ai':params.get('mode')||mode);render();initialized=true;
+    if(['template','example','type','attack','finish','mode'].some(key=>params.has(key)))persistDraft();
+    if(example&&!pendingGeneration){params.delete('example');history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+location.hash);}
     if(params.get('surprise')==='1')surprise();
   }
   try{await loadCollection();await renderPrintPreview();await setupDuel();}catch{if($('#print-preview')){$('#print-source-note').textContent='Local storage is unavailable. Enable browser storage to use your collection.';}}

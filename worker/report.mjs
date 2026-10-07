@@ -43,7 +43,7 @@ export async function weeklyReport(db,now=new Date()){
    ...landings.map(([name])=>[`入口页 ${name.slice(8)}`,...metric(name)])
   ]],
   ['创作漏斗（每次页面加载最多计一次）',[
-   ['改了卡片',...metric('ui:edit')],['加了照片',...metric('ui:photo')],['存进收藏',...metric('ui:save')],['下载 PNG',...metric('ui:png')],['下载互动卡',...metric('ui:keepsake')],['打印',...metric('ui:print')],['打开积分/购买窗口',...metric('ui:credits_open')],['惊喜卡',...metric('ui:surprise')],['对战',...metric('ui:duel')]
+   ['开始一句话创作',...metric('ui:idea_start')],['改编案例',...metric('ui:example_remix')],['筛选灵感',...metric('ui:ideas_filter')],['改了卡片',...metric('ui:edit')],['加了照片',...metric('ui:photo')],['存进收藏',...metric('ui:save')],['下载 PNG',...metric('ui:png')],['下载互动卡',...metric('ui:keepsake')],['打印',...metric('ui:print')],['打开积分/购买窗口',...metric('ui:credits_open')],['惊喜卡',...metric('ui:surprise')],['对战',...metric('ui:duel')]
   ]],
   ['AI',[
    ['免费试用生成',...pick('trial')],['付费生成',...pick('paid')],['失败并已退还',...pick('failed')],['试用额度用满（被拒次数）',...metric('ai_trial_cap_hit')],['付费额度用满（被拒次数）',...metric('ai_paid_cap_hit')],['拦截的品牌名',...metric('franchise_name_blocked')]

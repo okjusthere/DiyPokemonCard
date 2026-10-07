@@ -37,3 +37,13 @@ Deployable WebP copies are in the repository; deployment does not depend on thes
 - Independently authored card frames, backs, foil gradients and interactions in this project.
 
 Live user-generated artwork uses Cloudflare Workers AI with `@cf/black-forest-labs/flux-2-klein-9b`; optional character text uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`. Real launch QA generated a blue ice fox and transformed the bundled Ember artwork with this production provider. The three bundled companions above were created with Codex's built-in `image_gen` tool, which did not expose its underlying model ID. They are not evidence of FLUX output quality, and they must not be attributed to a specific GPT Image model without model metadata.
+
+## Inspiration gallery — production-generated examples
+
+The twelve images in `public/art/examples/*.webp` were made on 7 October 2026 through the **production website API**, using the same FLUX.2 klein 9B image model available to visitors. Llama 3.3 70B validates the custom idea and prepares its visual brief. Sproutsaur and Moonmoth used the bundled original sample sketches as image references; the other ten used text ideas. No customer photos or real children's uploads were used.
+
+`gallery-provenance.json` records each submitted idea, input mode, model IDs, timestamp, generation ID and hashes of the original output and public WebP. Images were resized from 1024 × 1024 to 768 × 768 and compressed; no retouching or compositing was applied to the illustrations. Card names, energy, moves, layout and finish were subsequently edited through the ordinary card fields. All twelve public images were retained from their first successful image generation. One earlier text-preparation request failed and was refunded before an image was made. Details can vary from the requested prompt (for example the wizard cat's coat color); these samples demonstrate actual results, not exact likeness or prompt adherence guarantees.
+
+`public/examples.js` contains the curated card fields and original submitted ideas. Run `node scripts/build-example-previews.js` after changing those fields. Its 450 × 629 WebP cards use the same SVG typography and frame as the editor, via `scripts/render-card.js`; the gallery loads these thumbnails lazily. `node scripts/build-social-image.js` now uses the astronaut, corgi and broccoli examples.
+
+The original Sparky, Ember and Bubbles remain in Pick a pal. Their separate built-in-image-tool provenance above is unchanged.
