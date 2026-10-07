@@ -2,7 +2,7 @@
 
 Canonical site: https://diypokecard.com. `www` redirects to the apex for public pages. APIs remain reachable on both hostnames for webhook compatibility.
 
-Current verified release: `7e18ef14-a44e-43e3-a25d-5bcabad10672`. AI, email and payments are enabled.
+Current verified release: `7310f98c-8ccf-4fb5-a282-7f1c3b5c6f70` (analytics, weekly report, separate AI trial cap; migration `0002_analytics.sql` applied). The previous release without analytics is `7e18ef14-a44e-43e3-a25d-5bcabad10672`. AI, email and payments are enabled.
 
 ## Cloudflare resources
 
