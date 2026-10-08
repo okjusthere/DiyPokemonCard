@@ -2,7 +2,7 @@
 
 Canonical site: https://diypokecard.com. `www` redirects to the apex for public pages. APIs remain reachable on both hostnames for webhook compatibility.
 
-Current verified release: `099b8a9f-f453-4fee-bfe9-465219c87b98` (twelve real-model examples, free-text ideas, drawing reference flow, new ideas guide and social preview). Based on latest commit `100ecc9`; analytics, weekly reports and separate trial/paid ceilings are preserved. No schema migration was needed; `0002_analytics.sql` remains applied. Previous verified analytics release: `7310f98c-8ccf-4fb5-a282-7f1c3b5c6f70`. AI, email and payments are enabled.
+Current verified release: `247e0e5b-27d2-4e54-b640-0e748c4af5ce` (idea box and idea-page variations generate directly, photo-to-AI next step, reveal download/edit, reworked credits dialog, sticky preview, studio removed from home; new AI generator, pet, birthday, drawing, about and 12 `/ideas/<slug>` pages; image sitemap; IndexNow submitted, 26 URLs accepted). No schema migration was needed; `0002_analytics.sql` remains applied. Previous release: `099b8a9f-f453-4fee-bfe9-465219c87b98`. AI, email and payments are enabled.
 
 ## Cloudflare resources
 
