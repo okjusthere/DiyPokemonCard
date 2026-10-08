@@ -84,6 +84,16 @@ Without `REPORT_EMAIL` the report is skipped. For an on-demand look at the last 
 
 AI-generated card text and photo-mode titles that contain well-known franchise names fall back to original text. Custom ideas accept 8–400 characters, reject known franchise names, and require a valid family-friendly JSON brief before image generation. Invalid or rejected briefs refund the reservation. The parser supports Workers AI object responses, string JSON and OpenAI-style choices; structured JSON output is requested. Legacy menu-option requests still work. A photo of a franchise toy is still restyled as photographed; that is a known gap.
 
+## Search and AI discovery
+
+Public pages are pre-rendered at build time: the home page, 11 guide pages (including the AI generator, pet, birthday, drawing and about pages) and 12 idea pages at `/ideas/<slug>`. The Worker serves any extensionless path from its `.html` asset and returns the real 404 page otherwise. `sitemap.xml` lists every public page with its images; `llms.txt` is a factual summary for AI assistants.
+
+After a deploy that adds or changes public pages:
+
+1. Run `npm run indexnow` to notify IndexNow engines (Bing, which also feeds ChatGPT search, plus Yandex and others). The key file `/38f663ecb9361d556fc308c68b947f55.txt` must stay published.
+2. Resubmit `https://diypokecard.com/sitemap.xml` in Google Search Console and Bing Webmaster Tools.
+3. In the Cloudflare dashboard, check AI Crawl Control for the zone so search and assistant crawlers (OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot, Googlebot, Bingbot) are allowed. Blocking training-only crawlers is a separate choice.
+
 ## Rollback
 
 Use `wrangler deployments list` and `wrangler rollback <version-id>` for Worker code/config. D1 and R2 data are not rolled back with code. Keep schema changes additive and verify compatibility before rollback. The initial verified pre-payment version is `774cf85e-d67f-4279-a9f5-7211be9428e3`.

@@ -7,6 +7,8 @@ fs.cpSync(path.resolve(__dirname, '../public'), dest, { recursive: true });
 const options = { origin: 'https://diypokecard.com' };
 const html = { '/': site.home(options), '/studio': site.home({ ...options, studioOnly: true }), '/privacy.html': site.legal('privacy', options), '/terms.html': site.legal('terms', options), '/404.html': site.notFound(options) };
 for (const route of Object.keys(site.pages)) html[route] = site.article(route, options);
+for (const slug of site.ideaSlugs) html[`/ideas/${slug}`] = site.ideaPage(slug, options);
+fs.mkdirSync(path.join(dest, 'ideas'), { recursive: true });
 for (const [route, content] of Object.entries(html)) fs.writeFileSync(path.join(dest, route === '/' ? 'index.html' : route.endsWith('.html') ? route.slice(1) : route.slice(1) + '.html'), content);
 fs.writeFileSync(path.join(dest, 'sitemap.xml'), site.sitemap(options.origin));
 fs.writeFileSync(path.join(dest, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${options.origin}/sitemap.xml\n`);

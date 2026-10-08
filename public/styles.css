@@ -33,3 +33,44 @@
 @media(max-width:620px){.hero h1{font-size:clamp(40px,11.8vw,60px)}.hero-desc{font-size:13px;line-height:1.75;max-width:330px;margin:20px auto}.idea-start-form{margin-top:21px}.idea-start-input{gap:2px;padding:6px}.idea-start-input textarea{font-size:12px;padding:7px;min-height:66px}.idea-start-input .btn{font-size:10px;padding:10px;min-height:43px;gap:5px}.idea-start-input .btn .icon{width:15px}.hero-secondary{gap:14px}.hero-secondary>a{font-size:10px}.hero-note{gap:12px}.hero-note span{font-size:9px}.hero-note .icon{width:13px}.hero-art{height:335px}.hero-sticker{width:76px;height:76px;font-size:15px;top:5px;right:7px}.scribble{font-size:11px;right:5px;bottom:0}.inspiration-section{padding-block:43px}.inspiration-section .section-heading h2{font-size:30px;max-width:310px}.inspiration-section .section-heading p{max-width:330px;font-size:12px}.idea-filters{gap:7px;margin-top:22px}.idea-filters button{padding:8px 12px;font-size:11px;min-height:40px}.gallery-description{font-size:11px;line-height:1.7;margin-bottom:18px}.example-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 13px}.example-art{padding:12px 9px 15px;border-radius:12px;aspect-ratio:3/4.15}.example-number{font-size:7px;margin-bottom:13px;letter-spacing:0}.example-art img{width:91%}.example-caption{padding-top:13px}.example-caption h3{font-size:19px}.example-caption p{font-size:10px;min-height:32px;margin-bottom:7px}.example-remix{font-size:10px;min-height:36px}.example-recipe summary{font-size:9px}.example-recipe p{font-size:10px}.gallery-footnote{text-align:left;font-size:10px;line-height:1.8;margin-top:22px}.drawing-story{padding-block:30px;margin-bottom:8px}.drawing-story-copy h2{font-size:29px}.drawing-story-copy p:not(.eyebrow){font-size:12px}.drawing-steps{gap:5px;grid-template-columns:1fr 10px 1fr 10px 1fr}.drawing-steps figcaption{font-size:8px;margin-top:10px}.drawing-steps figcaption b{display:block}.drawing-steps>span{font-size:11px}.drawing-story-copy small{font-size:9px}.idea-field textarea{font-size:13px}.prompt-chips button{min-height:36px}}
 @media(prefers-reduced-motion:reduce){.example-art img{transition:none}.example-art:hover img{transform:none}}
 .trial-note{font-size:9px!important;color:var(--muted);margin-top:9px!important;max-width:460px;line-height:1.6}.recipe-sketch{width:95px;height:95px;border-radius:9px;margin:10px 0}.ai-reference-card{display:flex;align-items:center;gap:12px;margin:4px 0 15px;border:1px solid var(--line);padding:9px;border-radius:11px;background:#faf9f5}.ai-reference-card img{width:64px;height:64px;object-fit:cover;border-radius:6px}.ai-reference-card strong{font-size:11px;display:block}.ai-reference-card .text-btn{font-size:10px;padding:5px 0}@media(max-width:800px){.trial-note{margin-inline:auto}}
+/* Studio flow: generating state, sticky preview, photo next step, reveal actions */
+/* clip (unlike hidden) keeps the rounded corners without breaking position:sticky; older browsers keep hidden. */
+.studio-shell,.preview-area{overflow:clip}
+.preview-area{justify-content:flex-start}.preview-sticky{width:100%;display:flex;flex-direction:column;align-items:center}
+@media(min-width:621px){.preview-sticky{position:sticky;top:14px}}
+.preview-stage .generating-overlay{position:absolute;inset:8px;z-index:3;border-radius:18px;background:#f0f1f8d9;backdrop-filter:blur(3px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.preview-stage.is-generating .generating-overlay{opacity:1;pointer-events:auto}
+.generating-overlay strong{font-family:var(--display);font-size:20px;color:var(--ink)}.generating-overlay small{font-size:11px;color:var(--muted)}
+.generating-spinner{width:38px;height:38px;border-radius:50%;border:3px solid #d5d8ef;border-top-color:var(--blue);animation:spin 0.9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.photo-next{margin-top:16px;padding:15px;border-radius:12px;background:var(--blue-soft);border:1px solid #d9ddf6}.photo-next p{font-size:11px;line-height:1.65;color:var(--muted);margin:0 0 11px}.photo-next p strong{color:var(--ink)}.photo-next .btn{width:100%;font-size:11px}
+.upload-inline{display:flex;align-items:center;gap:12px;border:1.5px dashed #bdc3e8;background:#f8f8fe;border-radius:12px;padding:13px 14px;cursor:pointer;position:relative;margin-bottom:6px}.upload-inline svg{width:22px;height:22px;color:var(--blue);flex-shrink:0}.upload-inline strong{display:block;font-size:12px}.upload-inline small{display:block;font-size:10px;color:var(--muted);margin-top:2px}.upload-inline input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.upload-inline[hidden],.photo-next[hidden]{display:none}
+.reveal-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin-top:4px}.reveal-actions .text-btn{width:100%;justify-content:center;color:var(--blue);font-size:12px}
+.reveal-actions[hidden]{display:none}
+.mini-preview{position:fixed;right:10px;bottom:16px;z-index:30;width:64px;padding:0;border:0;background:none;filter:drop-shadow(0 8px 16px #24283c40);transform:rotate(-4deg)}.mini-preview .trading-card{width:100%}.mini-preview[hidden]{display:none}
+@media(min-width:621px){.mini-preview{display:none}}
+/* Buy dialog */
+.credit-pack{position:relative}.pack-tag{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--yellow);color:var(--ink);font-style:normal;font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.credit-pack .pack-each{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.field span small{font-weight:400;color:var(--muted);margin-left:4px}
+details.restore-section summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--blue)}details.restore-section[open] summary{margin-bottom:12px}
+details.restore-section[hidden]{display:none}
+/* Idea box cost note */
+.idea-cost{font-size:10px;color:var(--muted);margin:8px 0 0 4px}
+.idea-start-input textarea{overflow-y:auto}
+.page-hero.has-idea-form .idea-start-form{max-width:620px;margin-top:22px}.page-hero.has-idea-form .prompt-chips{justify-content:flex-start}
+/* Links into idea pages */
+.example-howto{display:inline-block;font-size:11px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-top:6px}
+.drawing-guide-link{display:block;font-size:11px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin:4px 0 10px}
+/* Idea pages */
+.idea-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:8px}
+.idea-figure{margin:0 0 30px}.idea-figure img{width:100%;height:auto;border-radius:16px;background:#eeeff8}.idea-figure.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.idea-figure.pair figcaption{grid-column:1/-1}.idea-figure figcaption{font-size:11px;color:var(--muted);margin-top:8px}
+.idea-quote{margin:0 0 16px;padding:18px 22px;background:white;border:1px solid var(--line);border-radius:12px;font-size:14px;line-height:1.75;color:var(--ink)}
+.idea-variations{list-style:none;padding:0;margin:18px 0 8px;display:grid;gap:10px}.idea-variations li{display:flex;align-items:center;justify-content:space-between;gap:14px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px 14px}.idea-variations li span{font-size:13px;line-height:1.6;color:var(--ink)}.idea-variations .btn{flex-shrink:0;font-size:11px;min-height:38px;padding:8px 13px}
+.article-body .btn-secondary{color:var(--ink)}
+.example-links .idea-card-art img{display:block;width:100%;height:auto;border-radius:10px;margin-bottom:12px}.example-links h3 a{color:var(--ink);text-decoration:none}
+@media(max-width:620px){.idea-variations li{flex-direction:column;align-items:stretch}.idea-figure.pair{grid-template-columns:1fr 1fr;gap:8px}.example-links{grid-template-columns:1fr 1fr}}
+/* Footer columns */
+.footer-columns{display:flex;flex-wrap:wrap;gap:34px}.footer-columns .footer-links{flex-direction:column;gap:9px;align-items:flex-start}.footer-links strong{font-size:10px;color:var(--ink);letter-spacing:.5px;text-transform:uppercase}.footer-btn{font-size:10px;padding:0;color:inherit;font-weight:400}
+@media(prefers-reduced-motion:reduce){.generating-spinner{animation-duration:2.4s}}

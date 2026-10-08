@@ -1,21 +1,51 @@
 # DIY Poké Card
 
-> An independent fan-made trading card creation studio. Not affiliated with The Pokémon Company or Nintendo.
+> DIY Poké Card (diypokecard.com) is a free, browser-based maker for fan-made trading cards. Start from an original character, your own photo or drawing, or a one-line idea that AI turns into original artwork, then edit, download and print the card. Independent; not affiliated with Nintendo, Game Freak, Creatures Inc. or The Pokémon Company.
 
-The manual editor is free. Users choose original creature illustrations or their own JPEG, PNG, and WebP photos, edit names and abilities, and preview cards in 2D or with simulated 3D tilt and holographic finishes. The studio exports 945 × 1320 PNG images and self-contained interactive HTML keepsakes. Collections and photo drafts are stored locally in the browser, with JSON backup and import.
+## Key facts
 
-Optional AI artwork uses credits and works only when AI services are configured. The regular photo editor does not send photos to the server. Explicitly choosing AI photo transformation sends the photo for processing and requires adult permission. Digital holographic effects are not physical foil printing.
+- Free: the card editor, original companion characters, your own photos and drawings, 2D/3D preview with holo and cosmic finishes, PNG downloads (945 × 1,320 px), interactive HTML downloads, a local collection of up to 60 cards, and home printing.
+- No sign-up is needed. An adult email is only used for purchases and restoring credits.
+- AI artwork is optional. New visitors get one free AI picture when AI is available. One-time packs: 15 for $4.99, 40 for $9.99, 90 for $19.99 USD. No subscription. Technical failures return the credit.
+- AI images use the FLUX.2 klein 9B model and card text uses Llama 3.3 70B, both on Cloudflare Workers AI. Ideas must be original and family-friendly; named franchise characters are declined without using a credit.
+- Photos added in "My photo" stay in the browser. A photo is sent for AI processing only when an adult chooses AI art and confirms permission.
+- Printing: 63 × 88 mm cards, nine per A4 or US Letter sheet, cut guides and a 50 mm calibration line. Digital shine is not physical foil.
+- English interface. Cards are for personal play, gifts and home games, not official tournaments.
 
-## Useful pages
-- [Card maker](https://diypokecard.com/): Live studio and original companion templates.
-- [Photo cards](https://diypokecard.com/photo-card-maker): Local photo editing, crop controls, and optional AI processing.
-- [Holographic cards](https://diypokecard.com/holographic-card-maker): 2D versus 3D, digital finishes, and interactive downloads.
-- [Printing](https://diypokecard.com/printable-trading-cards): A4 or Letter layout, 63 × 88 mm cards, calibration and cut guides.
-- [Card ideas](https://diypokecard.com/card-ideas): Twelve prompts with editable starting points.
-- [Make a game](https://diypokecard.com/make-a-card-game): A local two-card comparison game and home-play rules.
+## Make a card
+
+- [Card maker](https://diypokecard.com/): Type an idea, use a photo, or start from 12 real examples.
+- [AI trading card generator](https://diypokecard.com/ai-trading-card-generator): How text-to-card AI works, writing tips, prices.
+- [Pet trading cards](https://diypokecard.com/pet-trading-card): Free photo cards or illustrated AI portraits of a dog, cat or other pet.
+- [Birthday trading cards](https://diypokecard.com/birthday-trading-card): Birthday hero cards, party favors and matching sets.
+- [Drawing to trading card](https://diypokecard.com/drawing-to-trading-card): Keep a child's drawing as is, or let AI illustrate it.
+- [Photo cards](https://diypokecard.com/photo-card-maker): Local photo editing and crop controls.
+- [Holographic cards](https://diypokecard.com/holographic-card-maker): 2D versus 3D, finishes, interactive downloads.
+- [Printing](https://diypokecard.com/printable-trading-cards): A4 or Letter layout at real card size.
+- [Card game](https://diypokecard.com/make-a-card-game): Simple home rules for playing with your own cards.
+
+## Card ideas with the exact prompts used
+
+- [All 12 card ideas](https://diypokecard.com/card-ideas)
+- [Space explorer (Nova Starling)](https://diypokecard.com/ideas/nova)
+- [Birthday hero (Birthday Brave)](https://diypokecard.com/ideas/birthday-hero)
+- [Corgi pet card (Cinder Corgi)](https://diypokecard.com/ideas/cinder-corgi)
+- [Black cat wizard (Moonwhisk)](https://diypokecard.com/ideas/moonwhisk)
+- [Dinosaur from a drawing (Sproutsaur)](https://diypokecard.com/ideas/sproutsaur)
+- [Moth from a drawing (Moonmoth)](https://diypokecard.com/ideas/moonmoth)
+- [Broccoli knight (Sir Broccoli)](https://diypokecard.com/ideas/sir-broccoli)
+- [Flying ice cream (Sundae Soar)](https://diypokecard.com/ideas/sundae-soar)
+- [Robot gardener (Copperbot)](https://diypokecard.com/ideas/copperbot)
+- [Crystal dragon (Crystalwing)](https://diypokecard.com/ideas/crystal-dragon)
+- [Party set bunny (Starlight Bunny)](https://diypokecard.com/ideas/party-bunny)
+- [Party set red panda (Starlight Scout)](https://diypokecard.com/ideas/party-panda)
+
+## About and policies
+
+- [About the studio](https://diypokecard.com/about)
+- [Pricing](https://diypokecard.com/pricing)
 - [Privacy](https://diypokecard.com/privacy.html)
 - [Terms](https://diypokecard.com/terms.html)
+- Contact: eric.wei@kevv.ai
 
 This file is a convenience summary, not a guarantee of search indexing or AI citation.
-
-- [Pricing](https://diypokecard.com/pricing): Free manual studio; optional one-time AI packs of 15/$4.99, 40/$9.99, and 90/$19.99 USD. No subscription.

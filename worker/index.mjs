@@ -4,7 +4,6 @@ import { sendAccessEmail, restorePage } from './email.mjs';
 import { generateArtwork } from './ai.mjs';
 import { clientEvents, isHumanPageview, recordPageview, pruneVisitors, track } from './metrics.mjs';
 import { sendWeeklyReport, WEEKLY_CRON } from './report.mjs';
-const pages=new Set(['/pricing','/studio','/photo-card-maker','/holographic-card-maker','/printable-trading-cards','/card-ideas','/make-a-card-game']);
 const cookie=(token,secure=true)=>`dpc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure?'; Secure':''}`;
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8'}});
 function secure(response,privateResponse=false){
@@ -95,7 +94,7 @@ export default {
    if(!['GET','HEAD'].includes(request.method))return secure(json({error:'Method not allowed.'},405));
    if(url.hostname==='www.diypokecard.com')return Response.redirect(`https://diypokecard.com${url.pathname}${url.search}`,301);
    if(url.pathname==='/index.html')return Response.redirect(new URL('/',url).href,301);
-   let target=url.pathname==='/'?'/index.html':pages.has(url.pathname)?url.pathname+'.html':url.pathname;
+   let target=url.pathname==='/'?'/index.html':/\.[a-z0-9]+$/i.test(url.pathname)?url.pathname:url.pathname+'.html';
    if(url.pathname.endsWith('/')&&url.pathname!=='/')return Response.redirect(new URL(url.pathname.slice(0,-1)+url.search,url).href,301);
    const assetURL=new URL(request.url);assetURL.pathname=target;
    let response=await env.ASSETS.fetch(new Request(assetURL,request));

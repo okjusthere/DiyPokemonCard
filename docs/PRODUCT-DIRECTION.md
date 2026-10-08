@@ -43,12 +43,18 @@
 | `/printable-trading-cards` | printable custom cards / A4 Letter | 可用的打印工具、尺寸和校准说明 |
 | `/card-ideas` | trading card ideas for kids | 十二个可点击进入编辑器的具体创意 |
 | `/make-a-card-game` | make your own card game | 可运行的比较器、组队与故事玩法 |
+| `/ai-trading-card-generator` | AI trading card generator | 页面内可直接输入创意，说明流程、写法、价格与限制 |
+| `/pet-trading-card` | pet / dog / cat trading card | 免费照片卡与 AI 插画两条路、按性格起招式名 |
+| `/birthday-trading-card` | birthday trading card for kids | 生日主角卡、派对小礼物、配套卡组与打印 |
+| `/drawing-to-trading-card` | turn drawing into a card | 原样保留或 AI 重绘、拍摄技巧、真实前后对比 |
+| `/ideas/<slug>` ×12 | 各示例的长尾词（corgi card、robot card…） | 真实生成图、实际提示词、卡面数据、三个可一键生成的变体 |
+| `/about` | 品牌与事实 | 定义、关键数据、AI 与隐私说明、联系方式 |
 
 正文由服务器直接输出，JavaScript 加载前就存在。每页有独立标题、描述、canonical 和内部链接；主页提供 WebApplication / 免费 Offer 描述，内容页提供合适的页面与面包屑数据。没有虚构评分，没有把可选 AI 收费包装成全部免费。
 
-`/studio` 作为带状态的创作入口设为 noindex，避免与首页重复。私人 API 不进索引，未知地址返回真正 404。提供 sitemap、社交分享图和本地字体。`llms.txt` 只是站点说明，不视作排名机制；GEO 没有流量保证或特殊 schema 捷径。公开 FAQ 是可读内容，没有依赖 FAQ 富结果。
+首页不再内嵌编辑器：首页负责理解与入口（一句话创意直接带到 `/studio` 开始生成），`/studio` 是唯一的编辑器。`/studio` 作为带状态的创作入口设为 noindex，避免与首页重复。私人 API 不进索引，未知地址返回真正 404。提供 sitemap、社交分享图和本地字体。`llms.txt` 只是站点说明，不视作排名机制；GEO 没有流量保证或特殊 schema 捷径。公开 FAQ 是可读内容，没有依赖 FAQ 富结果。
 
-不批量制造只有关键词不同的页面。不公开孩子照片、作品或昵称；文件分享由用户决定。初版面向英语市场，多语言需要真正翻译内容与界面后再设置 hreflang。
+示例页与场景页各自有独立内容（真实作品、实际提示词、具体步骤），不是换关键词的模板页。sitemap 带图片条目，便于图片搜索收录。不批量制造只有关键词不同的页面。不公开孩子照片、作品或昵称；文件分享由用户决定。初版面向英语市场，多语言需要真正翻译内容与界面后再设置 hreflang。
 
 ## 上线后才有答案的问题
 

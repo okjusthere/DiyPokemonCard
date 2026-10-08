@@ -1,7 +1,7 @@
 {
   "name": "diy-pokemon-card",
   "version": "1.0.0",
-  "description": "DIY Pokemon Card Maker — AI-powered trading card creator",
+  "description": "DIY Pokemon Card Maker \u2014 AI-powered trading card creator",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,8 @@
     "deploy": "wrangler deploy",
     "dev:worker": "wrangler dev",
     "db:migrate": "wrangler d1 migrations apply diypokecard-production --remote",
-    "stats": "wrangler d1 execute diypokecard-production --remote --command \"SELECT name, SUM(count) AS total FROM daily_metrics WHERE day >= date('now','-7 days') GROUP BY name ORDER BY name\""
+    "stats": "wrangler d1 execute diypokecard-production --remote --command \"SELECT name, SUM(count) AS total FROM daily_metrics WHERE day >= date('now','-7 days') GROUP BY name ORDER BY name\"",
+    "indexnow": "node scripts/indexnow.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.95",

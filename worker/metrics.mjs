@@ -1,7 +1,6 @@
 import { hash } from './storage.mjs';
 // Aggregate, cookie-free counts. Never pass photos, card text, names, emails or prompts to these helpers.
-export const clientEvents=new Set(['edit','photo','save','png','keepsake','print','credits_open','surprise','duel','idea_start','example_remix','ideas_filter']);
-const landingPages=new Set(['/','/studio','/pricing','/photo-card-maker','/holographic-card-maker','/printable-trading-cards','/card-ideas','/make-a-card-game']);
+export const clientEvents=new Set(['edit','photo','save','png','keepsake','print','credits_open','surprise','duel','idea_start','example_remix','ideas_filter','variation_start','photo_to_ai','reveal_download']);
 // Order matters: AI assistants on google.com must not be counted as search.
 const sources=[
  ['ai',/(^|\.)(chatgpt\.com|chat\.openai\.com|perplexity\.ai|claude\.ai|gemini\.google\.com|copilot\.microsoft\.com)$/],
@@ -40,7 +39,7 @@ export async function recordPageview(request,env,path){
   const visitor=await hash(`${await salt(db,day)}|${request.headers.get('cf-connecting-ip')||'local'}|${request.headers.get('user-agent')||''}`);
   const fresh=await db.prepare('INSERT OR IGNORE INTO daily_visitors(day,visitor_hash) VALUES(?,?)').bind(day,visitor).run();
   const names=['pageviews'];
-  if(fresh.meta.changes)names.push('visitors',`landing:${landingPages.has(path)?path:'other'}`,`source:${sourceOf(request)}`);
+  if(fresh.meta.changes)names.push('visitors',`landing:${/^\/[a-z0-9/.-]{0,60}$/.test(path)?path:'other'}`,`source:${sourceOf(request)}`);
   await db.batch(names.map(name=>count(db,name,day)));
  }catch(error){console.error('Pageview metric failed',error.name);}
 }

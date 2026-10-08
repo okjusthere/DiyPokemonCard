@@ -174,3 +174,19 @@ test('rejected or malformed idea briefs never reach image generation and refund 
   assert.equal(images,0);assert.equal((await getAccount(db,a.id)).promo_credits_remaining,1);
  }
 });
+
+test('extensionless page routes resolve to pre-rendered HTML and missing pages get a real 404',async()=>{
+ const seen=[];const ASSETS={async fetch(request){const path=new URL(request.url).pathname;seen.push(path);return ['/ideas/nova.html','/404.html','/index.html'].includes(path)?new Response(`<html>${path}</html>`,{headers:{'content-type':'text/html'}}):new Response('missing',{status:404});}};
+ const ok=await worker.fetch(new Request('https://diypokecard.com/ideas/nova'),{ASSETS},{});
+ assert.equal(ok.status,200);assert.match(await ok.text(),/\/ideas\/nova\.html/);
+ const missing=await worker.fetch(new Request('https://diypokecard.com/ideas/not-real'),{ASSETS},{});
+ assert.equal(missing.status,404);assert.match(await missing.text(),/404\.html/);
+ assert.ok(seen.includes('/ideas/not-real.html'));
+});
+test('new studio events are accepted and idea pages count as landing pages',async()=>{
+ const env={DB:db,BASE_URL:'https://diypokecard.com'};
+ for(const name of ['variation_start','photo_to_ai','reveal_download']){const r=await worker.fetch(new Request(`https://diypokecard.com/api/event?e=${name}`,{method:'POST',headers:{origin:'https://diypokecard.com'}}),env,{});assert.equal(r.status,204,name);}
+ const before=await metricTotal('landing:/ideas/nova');
+ await recordPageview(new Request('https://diypokecard.com/ideas/nova',{headers:{'sec-fetch-dest':'document','user-agent':'Mozilla/5.0 Firefox','cf-connecting-ip':'198.51.100.77'}}),{DB:db},'/ideas/nova');
+ assert.equal(await metricTotal('landing:/ideas/nova'),before+1);
+});

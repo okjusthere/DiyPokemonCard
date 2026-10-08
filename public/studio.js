@@ -10,7 +10,11 @@
   let card = normalizeCard(TEMPLATES[0]), mode = 'pal', view = reducedMotion.matches ? '2d' : '3d';
   let collection = [], undo = [], redo = [], flipped = false, initialized = false;
   let session = null, busy = false, saveTimer, toastTimer, revealCard = null, deletedCard = null;
-  let photoArt = null, exportBusy = false, draftSequence = 0, pendingGeneration = null;
+  let photoArt = null, exportBusy = false, draftSequence = 0, pendingGeneration = null, photoIntent = '';
+  // An idea typed on another page travels to /studio in sessionStorage, never in the URL.
+  const START_KEY = 'dpc-start';
+  const smooth = () => reducedMotion.matches ? 'instant' : 'smooth';
+  const phone = matchMedia('(max-width: 620px)');
   const challenges = [
     ['What if your pet could control the weather?', 'Give them a name, a superpower, and a very dramatic signature move.'],
     ['What if a tiny dragon lived in your backpack?', 'Invent the one thing it always helps you with. Snacks count.'],
@@ -39,6 +43,13 @@
     const dialog = $(id); if (!dialog.open) dialog.showModal();
     if (id === '#account-dialog') track('credits_open');
   }
+  function openCredits(reason = '') {
+    const empty = reason === 'empty';
+    $('#account-title').textContent = empty ? 'Keep the AI magic going.' : 'AI credits';
+    $('#account-subtitle').textContent = empty ? 'You’ve used your AI credits. Pick a one-time pack to make more AI pictures. Editing, downloads and printing stay free.' : 'Optional AI artwork. Editing, downloads and printing are always free.';
+    showDialog('#account-dialog');
+  }
+  function fitText(el) { if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight + 2, 220)}px`; }
   function closeDialog(id) { $(id)?.close(); }
   function filename(name) { return (name || 'my-card').replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 45) || 'my-card'; }
   function download(blob, name) {
@@ -120,8 +131,9 @@
     $$('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
     $('#selected-type').textContent = card.type;
     $('#undo-button').disabled = !undo.length; $('#redo-button').disabled = !redo.length;
-    $('#crop-controls').hidden = !photoArt;
-    $('#ai-reference-card').hidden = !photoArt;
+    $('#crop-controls').hidden = !photoArt; $('#photo-next').hidden = !photoArt;
+    $('#ai-reference-card').hidden = !photoArt; $('#ai-photo-pick').hidden = !!photoArt;
+    if (!$('#mini-preview').hidden) $('#mini-preview').innerHTML = cardMarkup(card, 'mini');
     if (photoArt) $('#ai-reference-image').src = photoArt.art;
     $('#email-card-section').hidden = !(card.generationId && session?.restoreAvailable);
     $('#preview-hint').lastChild.textContent = view === '3d' ? ' Move across your card. Catch a little sparkle.' : ' A clear, steady view of your creation.';
@@ -140,22 +152,23 @@
     if (scroll) $('#studio').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth' });
   }
 
-  function focusIdea() {
-    changeMode('ai'); $('#ai-kind').value = 'creature';
-    $('#ai-creature-fields').hidden = false; $('#ai-photo-fields').hidden = true;
+  function setAiKind(kind) {
+    const photo = kind === 'photo';
+    $('#ai-kind').value = photo ? 'photo' : 'creature';
+    $('#ai-creature-fields').hidden = photo; $('#ai-photo-fields').hidden = !photo;
+    $('#ai-prompt-label').textContent = photo ? 'Add a direction (optional)' : 'Describe your idea';
+    $('#ai-prompt').placeholder = photo ? 'For example: in a mossy jungle at sunrise' : 'A brave broccoli knight with a leaf cape in a tiny vegetable kingdom…';
+    $('#idea-help').textContent = photo ? 'Leave it empty to keep things simple, or add a place or mood. The AI keeps the main shape of your picture.' : 'One subject + one surprising detail + a place. Original, family-friendly ideas work best. No personal details needed.';
     updateSessionUI();
-    $('#studio').scrollIntoView({behavior:'instant'});
-    $('#ai-prompt').focus({preventScroll:true});
   }
   async function chooseExample(slug, scroll = true) {
     const example = examples.find(e => e.slug === slug); if (!example) return;
     if (!preview) { location.href = `/studio?example=${encodeURIComponent(slug)}`; return; }
     if (busy || pendingGeneration) { toast('Finish or recover your current artwork before starting another idea.'); return; }
     remember(); card = normalizeCard(example); photoArt = null; flipped = false;
-    changeMode('ai'); render(); persistDraft();
-    $('#ai-kind').value = 'creature'; $('#ai-creature-fields').hidden = false; $('#ai-photo-fields').hidden = true;
+    changeMode('ai'); setAiKind('creature'); render(); persistDraft();
     if (example.category==='drawings') await loadExampleReference(example);
-    updateSessionUI(); if (scroll) {$('#studio').scrollIntoView({behavior:'instant'});$('#ai-prompt').focus({preventScroll:true});}
+    if (scroll) {$('#studio').scrollIntoView({behavior:'instant'});$('#ai-prompt').focus({preventScroll:true});}
     track('example_remix');
     if (scroll) toast('Your starting card is ready. Edit freely; Generate makes new artwork for 1 credit.', 5000);
   }
@@ -166,25 +179,49 @@
       const art=await blobData(await response.blob());
       if(card.example!==example.slug)return;
       photoArt={art,artWidth:480,artHeight:480};
-      $('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;
+      setAiKind('photo');
       $('#ai-photo-consent').checked=false;render();persistDraft();
     } catch(e) { toast(e.message); }
   }
-  function startIdea(idea) {
+  // Starting an idea from a button means making it: generate now, or explain why not.
+  async function startIdea(idea, auto = false) {
     if (busy || pendingGeneration) { toast('Finish or recover your current artwork before starting another idea.'); return; }
     if (!preview) return;
-    update({prompt:idea}); focusIdea(); track('idea_start');
-    toast('Your idea is ready in the studio. Press Generate when you’re happy with it.');
+    update({prompt:idea}); changeMode('ai'); setAiKind('creature');
+    $('.studio-shell').scrollIntoView({behavior:'instant'});
+    if (!auto) { $('#ai-prompt').focus({preventScroll:true}); return; }
+    if (!session?.capabilities?.ai) { toast('AI pictures are resting right now. Your idea is saved here, and the free editor still works.', 6500); return; }
+    await generate();
+  }
+  function beginIdea(idea, event = 'idea_start') {
+    if (idea.length < 8) { toast('Describe your idea in at least 8 characters.'); return; }
+    track(event);
+    if (preview) { startIdea(idea, true); return; }
+    try { sessionStorage.setItem(START_KEY, JSON.stringify({ idea, at: Date.now() })); } catch { /* The studio still opens, ready for the idea. */ }
+    location.href = '/studio?mode=ai';
+  }
+  async function resumeStartedIdea() {
+    let start = null;
+    try { start = JSON.parse(sessionStorage.getItem(START_KEY) || 'null'); sessionStorage.removeItem(START_KEY); } catch { return; }
+    if (!preview || typeof start?.idea !== 'string' || Date.now() - start.at > 10 * 60 * 1000) return;
+    await startIdea(start.idea.slice(0, 400), true);
+  }
+  function photoToAi() {
+    changeMode('ai'); setAiKind('photo'); track('photo_to_ai');
+    const consent = $('#ai-photo-consent');
+    consent.closest('label').scrollIntoView({behavior:smooth(),block:'center'}); consent.focus({preventScroll:true});
   }
   $('#idea-start-form')?.addEventListener('submit', event => {
-    event.preventDefault(); startIdea($('#hero-idea').value.trim());
+    event.preventDefault(); beginIdea($('#hero-idea').value.trim());
   });
+  $('#hero-idea')?.addEventListener('input', event => fitText(event.target));
 
-  async function readPhoto(file) {
+  async function readPhoto(file, input = $('#photo-input')) {
     if (!file) return;
     const error = $('#photo-error'); error.textContent = '';
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { error.textContent = 'Choose a JPG, PNG, or WebP image. Convert HEIC or SVG first.'; return; }
-    if (file.size > 10 * 1024 * 1024) { error.textContent = 'This photo is over 10 MB. Choose a smaller version.'; return; }
+    const fail = message => { error.textContent = message; toast(message, 6000); };
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { fail('Choose a JPG, PNG, or WebP image. Convert HEIC or SVG first.'); input.value = ''; return; }
+    if (file.size > 10 * 1024 * 1024) { fail('This photo is over 10 MB. Choose a smaller version.'); input.value = ''; return; }
     try {
       const source = await blobData(file), image = await imageFrom(source);
       if (image.width * image.height > 60_000_000) throw new Error('This picture has too many pixels. Resize it before adding it.');
@@ -193,10 +230,15 @@
       const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(image,0,0,canvas.width,canvas.height);
       photoArt = { art: canvas.toDataURL('image/jpeg', .88), artWidth: canvas.width, artHeight: canvas.height };
       $('#ai-photo-consent').checked=false;
-      update({ ...photoArt, source:'photo', example:'', prompt:'', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
-      toast('Your photo is in. Give your little legend a name.'); track('photo');
-    } catch (e) { error.textContent = e.message; }
-    finally { $('#photo-input').value = ''; }
+      // Text written for other artwork (a template, an example or an AI card) would not describe this picture.
+      const unedited = card.source === 'ai' || examples.some(e => e.slug === card.example && e.name === card.name) || TEMPLATES.some(t => t.name === card.name);
+      update({ ...photoArt, ...(unedited ? { name: 'My little legend', attack: 'Big heart', ability: 'A one-of-a-kind companion with a story only you can tell.' } : {}), source:'photo', example:'', prompt:'', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
+      track('photo');
+      if (mode === 'ai') { setAiKind('photo'); toast('Your picture is ready. Confirm permission below, then press Generate.', 5000); }
+      else if (photoIntent === 'ai') { photoToAi(); toast('Your picture is on the card. Confirm permission, then press Generate.', 5000); }
+      else toast('Your picture is on the card. Keep it as it is, or turn it into AI art.', 5000);
+    } catch (e) { fail(e.message); }
+    finally { input.value = ''; }
   }
 
   const artCache = new Map();
@@ -218,9 +260,9 @@
     canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Export did not finish. Please try again.')), 'image/png'));
   }
-  async function exportPng() {
+  async function exportPng(source = card) {
     if (exportBusy) return;
-    exportBusy = true; const snapshot = { ...card };
+    exportBusy = true; const snapshot = { ...source };
     const button = $('[data-action="download"]'); if (button) button.disabled = true;
     try { download(await cardPng(snapshot), `${filename(snapshot.name)}-card.png`); toast('Your card is ready. Print it, share it, keep it.'); track('png'); }
     catch (e) { toast(e.message); }
@@ -260,7 +302,7 @@
     $('#reveal-title').textContent = title; $('#reveal-stage').innerHTML = cardMarkup(revealCard, 'reveal');
     $('.trading-card', $('#reveal-stage')).classList.add('is-flipped');
     $('#reveal-stage').classList.remove('revealed'); $('#reveal-stage').setAttribute('aria-label', 'Reveal your card');
-    $('#reveal-save').hidden = true; $('#reveal-hint').textContent = 'Tap your card to reveal it.';
+    $('#reveal-actions').hidden = true; $('#reveal-hint').textContent = 'Tap your card to reveal it.';
     showDialog('#reveal-dialog');
   }
   function surprise() {
@@ -303,6 +345,8 @@
       $('#ai-status').classList.toggle('available', !!available);
     }
     $('#credit-summary').textContent = `${credits} AI credit${credits===1?'':'s'} on this browser. ${ai ? 'Each new AI artwork uses one credit.' : 'AI generation is currently unavailable here.'}`;
+    const cost = $('#idea-cost');
+    if (cost && session) cost.textContent = !ai ? 'AI pictures are resting right now. Editing and photo cards stay free.' : !credits ? 'You’ve used your free AI picture. Packs start at $4.99, no subscription.' : session.account.paidCredits > 0 ? `Uses 1 of your ${credits} AI credits.` : 'Your first AI picture is free. No sign-up.';
     $('#checkout-button').disabled = !session?.capabilities?.payments || !ai;
     $('#restore-button').disabled = !session?.restoreAvailable;
     if (!session?.capabilities?.payments) $('#account-error').textContent = 'AI packs are not available to buy yet. You can still create, download and print for free.';
@@ -319,13 +363,17 @@
   async function generate() {
     if (busy) return;
     $('#ai-error').textContent = '';
-    if (!pendingGeneration && !session?.account?.totalCredits) { showDialog('#account-dialog'); return; }
+    const problem = message => { $('#ai-error').textContent = message; toast(message, 6000); };
+    if (!pendingGeneration && !session?.account?.totalCredits) { openCredits('empty'); return; }
     const fromPhoto = $('#ai-kind').value === 'photo';
     const idea = $('#ai-prompt').value.trim();
-    if (!pendingGeneration && ((!fromPhoto && idea.length < 8) || (idea && idea.length < 8))) { $('#ai-error').textContent = 'Describe your idea in at least 8 characters, or use the creature ingredients below.'; $('#ai-prompt').focus(); return; }
-    if (!pendingGeneration && fromPhoto && !photoArt) { $('#ai-error').textContent = 'Add a picture in My photo first, then return here.'; return; }
-    if (!pendingGeneration && fromPhoto && !$('#ai-photo-consent').checked) { $('#ai-error').textContent = 'An adult needs to confirm photo permission before AI processing.'; return; }
+    if (!pendingGeneration && ((!fromPhoto && idea.length < 8) || (idea && idea.length < 8))) { problem('Describe your idea in at least 8 characters, or use the creature ingredients below.'); $('#ai-prompt').focus(); return; }
+    if (!pendingGeneration && fromPhoto && !photoArt) { problem('Choose a photo or drawing first.'); return; }
+    if (!pendingGeneration && fromPhoto && !$('#ai-photo-consent').checked) { problem('An adult needs to confirm permission for this picture first.'); $('#ai-photo-consent').focus(); return; }
     busy = true; updateSessionUI(); $('#generate-button').textContent = pendingGeneration ? 'Recovering your artwork…' : 'Imagining your new character…';
+    $('#generating-title').textContent = pendingGeneration ? 'Recovering your artwork…' : fromPhoto ? 'Painting your picture…' : 'Imagining your idea…';
+    $('.preview-stage').classList.add('is-generating');
+    if (phone.matches) preview.scrollIntoView({behavior:smooth(),block:'center'});
     const before = pendingGeneration?.before || { ...card };
     try {
       if (!pendingGeneration) {
@@ -352,14 +400,14 @@
       pendingGeneration = null;
       try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* The downloaded artwork remains in the current draft. */ }
     } catch (e) {
-      $('#ai-error').textContent = e.message;
+      $('#ai-error').textContent = e.message; if (e.status !== 402) toast(e.message, 6500);
       if (pendingGeneration?.request && [400,402,410,413,415,429,502,503].includes(e.status)) {
         pendingGeneration = null;
         try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* Clear the in-memory request too. */ }
       }
       try { session = await request('/api/session'); } catch { /* Keep the previously known balance until the connection returns. */ }
-      if (e.status === 402) showDialog('#account-dialog');
-    } finally { busy = false; updateSessionUI(); }
+      if (e.status === 402) openCredits('empty');
+    } finally { busy = false; $('.preview-stage').classList.remove('is-generating'); updateSessionUI(); }
   }
   async function handleReturns() {
     const params = new URLSearchParams(location.search);
@@ -431,9 +479,10 @@
     const target = event.target.closest('button,a'); if (!target) return;
     try {
       if (target.dataset.example) { event.preventDefault(); await chooseExample(target.dataset.example); return; }
+      if (target.dataset.startIdea) { event.preventDefault(); beginIdea(target.dataset.startIdea, 'variation_start'); return; }
       if (target.dataset.idea) {
         const example=examples.find(e=>e.slug===target.dataset.idea); if(!example)return;
-        $('#hero-idea').value=example.prompt; $('#hero-idea').focus(); return;
+        $('#hero-idea').value=example.prompt; fitText($('#hero-idea')); $('#hero-idea').focus(); return;
       }
       if (target.dataset.category) {
         const id=target.dataset.category, category=categories.find(c=>c.id===id);
@@ -462,13 +511,16 @@
       }
       switch(target.dataset.action){
         case 'collection':await openCollection();break;
-        case 'account':showDialog('#account-dialog');break;
+        case 'account':openCredits();break;
         case 'undo':if(undo.length){redo.push({...card});card=undo.pop();render();persistDraft();}break;
         case 'redo':if(redo.length){undo.push({...card});card=redo.pop();render();persistDraft();}break;
         case 'reset':chooseTemplate(card.key);toast('Back to your original companion. Undo brings your changes back.');break;
         case 'reset-crop':update({zoom:1,offsetX:50,offsetY:50});break;
         case 'flip':flipped=!flipped;$('.trading-card',preview)?.classList.toggle('is-flipped',flipped);break;
         case 'download':await exportPng();break;
+        case 'reveal-download':if(revealCard){await exportPng(revealCard);track('reveal_download');}break;
+        case 'reveal-edit':if(revealCard){if(preview){if(card.art!==revealCard.art){remember();card={...revealCard};flipped=false;changeMode(card.source==='photo'?'photo':card.source==='ai'?'ai':'pal');if(card.source==='template')photoArt=null;render();persistDraft();}closeDialog('#reveal-dialog');$('#card-name').scrollIntoView({behavior:smooth(),block:'center'});$('#card-name').focus({preventScroll:true});}else closeDialog('#reveal-dialog');}break;
+        case 'photo-to-ai':photoToAi();break;
         case 'interactive':await exportInteractive();break;
         case 'save':await saveCard();toast('A little legend, safely in your collection.');break;
         case 'surprise':surprise();break;
@@ -480,7 +532,7 @@
         case 'print-collection':if(!collection.length){toast('Keep a card before printing your collection.');break;}closeDialog('#collection-dialog');await printCards(collection);break;
         case 'print-sheet':await printCards(await printSelection(),$('#paper-size').value);break;
         case 'duel':renderDuel(true);track('duel');break;
-        case 'replace-reference':changeMode('photo');$('#upload-zone').scrollIntoView({behavior:'smooth',block:'center'});$('#photo-input').focus({preventScroll:true});break;
+        case 'replace-reference':$('#ai-photo-input').click();break;
         case 'build-idea':update({prompt:`An original ${$('#ai-color').value} ${$('#ai-animal').value} with ${$('#ai-power').value} powers, in a magical garden.`});$('#ai-prompt').focus();break;
         case 'generate':await generate();break;
         case 'email-card':{
@@ -495,7 +547,7 @@
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
   $('#reveal-stage').addEventListener('click',()=>{
     const el=$('.trading-card',$('#reveal-stage'));if(!el?.classList.contains('is-flipped'))return;
-    el.classList.remove('is-flipped');$('#reveal-stage').classList.add('revealed');$('#reveal-stage').setAttribute('aria-label',revealCard.name+' revealed');$('#reveal-save').hidden=false;$('#reveal-hint').textContent=`${revealCard.name}. ${revealCard.type} energy. Completely yours.`;
+    el.classList.remove('is-flipped');$('#reveal-stage').classList.add('revealed');$('#reveal-stage').setAttribute('aria-label',revealCard.name+' revealed');$('#reveal-actions').hidden=false;$('#reveal-hint').textContent=`${revealCard.name}. ${revealCard.type} energy. Completely yours.`;
   });
   $('#import-collection').addEventListener('change',async event=>{try{await importBackup(event.target.files[0]);}catch(e){toast(e.message);}finally{event.target.value='';}});
   $('#checkout-form').addEventListener('submit',async event=>{
@@ -506,7 +558,13 @@
 
   if(preview){
     $$('[data-card-field]').forEach(input=>input.addEventListener('input',()=>{update({[input.dataset.cardField]:input.value},true,false);}));
-    $('#photo-input').addEventListener('change',event=>readPhoto(event.target.files[0]));
+    $('#photo-input').addEventListener('change',event=>readPhoto(event.target.files[0],event.target));
+    $('#ai-photo-input').addEventListener('change',event=>readPhoto(event.target.files[0],event.target));
+    // On phones the card scrolls away while editing, so a small copy follows the controls.
+    const mini=$('#mini-preview');let previewInView=true,controlsInView=false;
+    const syncMini=()=>{const show=phone.matches&&!previewInView&&controlsInView;mini.hidden=!show;if(show)mini.innerHTML=cardMarkup(card,'mini');};
+    if('IntersectionObserver' in window){new IntersectionObserver(([entry])=>{previewInView=entry.isIntersecting;syncMini();},{threshold:.15}).observe(preview);new IntersectionObserver(([entry])=>{controlsInView=entry.isIntersecting;syncMini();}).observe($('.controls'));}
+    mini.addEventListener('click',()=>preview.scrollIntoView({behavior:smooth(),block:'center'}));
     const zone=$('#upload-zone');
     ['dragenter','dragover'].forEach(name=>zone.addEventListener(name,event=>{event.preventDefault();zone.classList.add('dragging');}));
     ['dragleave','drop'].forEach(name=>zone.addEventListener(name,()=>zone.classList.remove('dragging')));
@@ -519,18 +577,19 @@
     preview.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='f'){event.preventDefault();flipped=!flipped;$('.trading-card',preview).classList.toggle('is-flipped',flipped);}if(event.key.startsWith('Arrow')&&view==='3d'&&!reducedMotion.matches){event.preventDefault();tilt(event.key==='ArrowLeft'?.1:event.key==='ArrowRight'?.9:.5,event.key==='ArrowUp'?.1:event.key==='ArrowDown'?.9:.5);}});
     preview.addEventListener('focusout',()=>tilt());
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){view='2d';render();}});
-    $('#ai-kind').addEventListener('change',()=>{const fromPhoto=$('#ai-kind').value==='photo';$('#ai-creature-fields').hidden=fromPhoto;$('#ai-photo-fields').hidden=!fromPhoto;updateSessionUI();persistDraft();});
-    try{const draft=await dbRead('settings','draft');if(draft?.card){card=normalizeCard(draft.card);mode=['pal','photo','ai'].includes(draft.mode)?draft.mode:'pal';view=!reducedMotion.matches&&draft.view==='3d'?'3d':'2d';if(draft.referencePhoto){const ref=normalizeCard(draft.referencePhoto);if(ref.art.startsWith('data:'))photoArt={art:ref.art,artWidth:ref.artWidth,artHeight:ref.artHeight};}if(draft.aiKind==='photo'){$('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;}}}catch{ /* Downloads remain available when local storage is disabled. */ }
+    $('#ai-kind').addEventListener('change',()=>{setAiKind($('#ai-kind').value);persistDraft();});
+    try{const draft=await dbRead('settings','draft');if(draft?.card){card=normalizeCard(draft.card);mode=['pal','photo','ai'].includes(draft.mode)?draft.mode:'pal';view=!reducedMotion.matches&&draft.view==='3d'?'3d':'2d';if(draft.referencePhoto){const ref=normalizeCard(draft.referencePhoto);if(ref.art.startsWith('data:'))photoArt={art:ref.art,artWidth:ref.artWidth,artHeight:ref.artHeight};}if(draft.aiKind==='photo')setAiKind('photo');}}catch{ /* Downloads remain available when local storage is disabled. */ }
     try{const pending=await dbRead('settings','pending-generation');if(/^gen_[a-f0-9]{32}$/.test(pending?.result?.generationId||'')){pendingGeneration={before:normalizeCard(pending.before),result:pending.result};mode='ai';}else if(/^gen_[a-f0-9]{32}$/.test(pending?.request?.data?.requestId||'')&&['/api/ai/pokemon-create','/api/ai/pokemon-from-photo'].includes(pending.request.path)){pendingGeneration={before:normalizeCard(pending.before),request:pending.request};mode='ai';}}catch{ /* A pending download can still be retried in the current tab. */ }
     const params=new URLSearchParams(location.search),template=TEMPLATES.find(t=>t.key===params.get('template'));
+    photoIntent=params.get('intent')==='ai'?'ai':'';
     if(template&&!pendingGeneration){card=normalizeCard(template);mode='pal';}
     if(Object.hasOwn(TYPES,params.get('type')))card.type=params.get('type');
     if(params.get('attack'))card=normalizeCard({...card,attack:params.get('attack')});
     if(['matte','holo','cosmic'].includes(params.get('finish')))card.finish=params.get('finish');
     if(card.source==='photo')photoArt={art:card.art,artWidth:card.artWidth,artHeight:card.artHeight};
     const example=examples.find(e=>e.slug===params.get('example'));
-    if(example&&!pendingGeneration){card=normalizeCard(example);mode='ai';photoArt=null;$('#ai-kind').value='creature';$('#ai-creature-fields').hidden=false;$('#ai-photo-fields').hidden=true;if(example.category==='drawings')await loadExampleReference(example);}
-    if(pendingGeneration?.request?.path==='/api/ai/pokemon-from-photo'){$('#ai-kind').value='photo';$('#ai-creature-fields').hidden=true;$('#ai-photo-fields').hidden=false;}
+    if(example&&!pendingGeneration){card=normalizeCard(example);mode='ai';photoArt=null;setAiKind('creature');if(example.category==='drawings')await loadExampleReference(example);}
+    if(pendingGeneration?.request?.path==='/api/ai/pokemon-from-photo')setAiKind('photo');
     changeMode(pendingGeneration?'ai':params.get('mode')||mode);render();initialized=true;
     if(['template','example','type','attack','finish','mode'].some(key=>params.has(key)))persistDraft();
     if(example&&!pendingGeneration){params.delete('example');history.replaceState(null,'',location.pathname+(params.size?'?'+params:'')+location.hash);}
@@ -539,5 +598,5 @@
   try{await loadCollection();await renderPrintPreview();await setupDuel();}catch{if($('#print-preview')){$('#print-source-note').textContent='Local storage is unavailable. Enable browser storage to use your collection.';}}
   ['#paper-size','#print-source'].forEach(id=>$(id)?.addEventListener('change',()=>renderPrintPreview().catch(e=>toast(e.message))));
   ['#battle-one','#battle-two','#battle-stat'].forEach(id=>$(id)?.addEventListener('change',()=>renderDuel()));
-  try{session=await request('/api/session');updateSessionUI();await handleReturns();}catch{if($('#ai-status'))$('#ai-status').textContent='The AI service could not be reached. Keep creating with companions and your own photos.';$('#credit-summary').textContent='AI account services are offline. The free manual studio still works.';}
+  try{session=await request('/api/session');updateSessionUI();await handleReturns();await resumeStartedIdea();}catch{if($('#ai-status'))$('#ai-status').textContent='The AI service could not be reached. Keep creating with companions and your own photos.';$('#credit-summary').textContent='AI account services are offline. The free manual studio still works.';}
 })();

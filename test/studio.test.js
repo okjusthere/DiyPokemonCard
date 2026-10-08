@@ -31,8 +31,9 @@ test('photo crop uses actual image aspect ratio and continuous offsets', () => {
 
 test('all public landing pages have substantive server-rendered text and unique canonical URLs', () => {
   const titles = new Set();
-  for (const route of ['/', ...Object.keys(site.pages)]) {
-    const html = route === '/' ? site.home() : site.article(route);
+  const ideaRoutes = site.ideaSlugs.map(slug => `/ideas/${slug}`);
+  for (const route of ['/', ...Object.keys(site.pages), ...ideaRoutes]) {
+    const html = route === '/' ? site.home() : route.startsWith('/ideas/') ? site.ideaPage(route.slice(7)) : site.article(route);
     assert.equal((html.match(/<h1[ >]/g) || []).length, 1, route);
     assert.match(html, new RegExp(`<link rel="canonical" href="https://diypokecard.com${route.replaceAll('/', '\\/')}"`));
     const title = html.match(/<title>(.*?)<\/title>/)[1];
@@ -45,6 +46,8 @@ test('all public landing pages have substantive server-rendered text and unique 
   const xml = site.sitemap('https://cards.example');
   assert.match(xml, /https:\/\/cards.example\/photo-card-maker/);
   assert.doesNotMatch(xml, /\/studio|localhost/);
+  for (const route of ideaRoutes) assert.ok(xml.includes(`<loc>https://cards.example${route}</loc>`), route);
+  assert.match(xml, /<image:loc>https:\/\/cards.example\/art\/examples\/cinder-corgi\.webp<\/image:loc>/);
 });
 
 test('HTTP: public routes, real 404s, private AI artwork, and honest capabilities', async t => {
@@ -53,7 +56,7 @@ test('HTTP: public routes, real 404s, private AI artwork, and honest capabilitie
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
   t.after(async () => { await new Promise(resolve => server.close(resolve)); app.locals.db.close(); });
   const origin = `http://127.0.0.1:${server.address().port}`;
-  for (const route of ['/', '/studio', ...Object.keys(site.pages), '/privacy.html', '/terms.html']) {
+  for (const route of ['/', '/studio', ...Object.keys(site.pages), ...site.ideaSlugs.map(slug => `/ideas/${slug}`), '/privacy.html', '/terms.html']) {
     const response = await fetch(origin + route);
     assert.equal(response.status, 200, route);
     assert.equal(response.headers.get('cache-control'), 'no-cache');
@@ -104,4 +107,25 @@ test('gallery recipes remain editable, local, and discoverable without JavaScrip
   }
   for (const art of ['/art/examples/../../private.webp','/art/examples/unknown.webp','https://evil.example/nova.webp']) assert.equal(normalizeCard({art}).art,TEMPLATES[0].art);
   assert.equal(normalizeCard({prompt:'x'.repeat(900)}).prompt.length,400);
+});
+
+test('home sends ideas to the studio, and idea pages link back with real recipes', () => {
+  const { examples } = require('../public/examples');
+  const home = site.home(), studio = site.home({ studioOnly: true });
+  assert.doesNotMatch(home, /id="studio"/, 'the studio lives on /studio');
+  assert.match(home, /id="idea-start-form"/);
+  assert.match(studio, /id="studio"/); assert.match(studio, /noindex/);
+  for (const marker of ['generating-overlay', 'reveal-actions', 'data-action="reveal-download"', 'id="photo-next"', 'id="ai-photo-input"', 'id="mini-preview"', 'preview-sticky']) assert.ok(studio.includes(marker), marker);
+  for (const example of examples) {
+    const page = site.ideaPage(example.slug);
+    assert.ok(home.includes(`/ideas/${example.slug}`), example.slug);
+    assert.ok(page.includes(`/studio?example=${example.slug}`));
+    assert.ok(page.includes(site.icon('arrow')));
+    assert.ok(page.replace(/&#39;/g, "'").includes(example.prompt.replace(/&/g, '&amp;')), 'shows the exact prompt');
+    assert.match(page, /"@type":"ImageObject"/);
+  }
+  assert.equal(site.ideaPage('../etc/passwd'), null);
+  const generator = site.article('/ai-trading-card-generator');
+  assert.match(generator, /id="idea-start-form"/);
+  assert.match(site.ideaPage('cinder-corgi'), /data-start-idea="[^"]{20,}"/);
 });

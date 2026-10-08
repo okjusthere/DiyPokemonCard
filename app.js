@@ -2492,6 +2492,7 @@ Return:
   app.get('/studio', (_req, res) => sendPage(res, site.home({ ...pageOptions, studioOnly: true })));
   app.get('/index.html', (_req, res) => res.redirect(301, '/'));
   Object.keys(site.pages).forEach(route => app.get(route, (_req, res) => sendPage(res, site.article(route, pageOptions))));
+  site.ideaSlugs.forEach(slug => app.get(`/ideas/${slug}`, (_req, res) => sendPage(res, site.ideaPage(slug, pageOptions))));
   app.get('/privacy.html', (_req, res) => sendPage(res, site.legal('privacy', pageOptions)));
   app.get('/terms.html', (_req, res) => sendPage(res, site.legal('terms', pageOptions)));
   app.get('/sitemap.xml', (_req, res) => res.set('Cache-Control', 'public, max-age=3600').type('xml').send(site.sitemap(publicOrigin)));
