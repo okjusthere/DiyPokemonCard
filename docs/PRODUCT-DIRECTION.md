@@ -49,10 +49,12 @@
 | `/drawing-to-trading-card` | turn drawing into a card | 原样保留或 AI 重绘、拍摄技巧、真实前后对比 |
 | `/ideas/<slug>` ×12 | 各示例的长尾词（corgi card、robot card…） | 真实生成图、实际提示词、卡面数据、三个可一键生成的变体 |
 | `/about` | 品牌与事实 | 定义、关键数据、AI 与隐私说明、联系方式 |
+| `/trading-card-template` | blank trading card template | 真实可下载的 A4/Letter PDF 与 PNG，是唯一有理由被外链的资产 |
+| `/christmas-trading-cards` | christmas trading card gift | 送礼意图：祖父母、宠物保姆、老师、礼物标签；90 天内唯一的送礼窗口 |
 
 正文由服务器直接输出，JavaScript 加载前就存在。每页有独立标题、描述、canonical 和内部链接；主页提供 WebApplication / 免费 Offer 描述，内容页提供合适的页面与面包屑数据。没有虚构评分，没有把可选 AI 收费包装成全部免费。
 
-首页不再内嵌编辑器：首页负责理解与入口（一句话创意直接带到 `/studio` 开始生成），`/studio` 是唯一的编辑器。`/studio` 作为带状态的创作入口设为 noindex，避免与首页重复。私人 API 不进索引，未知地址返回真正 404。提供 sitemap、社交分享图和本地字体。`llms.txt` 只是站点说明，不视作排名机制；GEO 没有流量保证或特殊 schema 捷径。公开 FAQ 是可读内容，没有依赖 FAQ 富结果。
+2026-10-11 起，首页 `<title>`、eyebrow 和 og:title 不再把 “Pokémon” 放在产品名的位置（改为 “Trading Card Maker for Kids & Pets”），正文与 FAQ 保留指称性的 “fan-made, Pokémon-style, unofficial”。原因：头部词 “pokemon card maker” 由多年老站占据、新站赢不了，而品牌名位置的使用是已记录商标执法案例的共同点；当前自然流量为 0，改写没有排名损失。首页不再内嵌编辑器：首页负责理解与入口（一句话创意直接带到 `/studio` 开始生成），`/studio` 是唯一的编辑器。`/studio` 作为带状态的创作入口设为 noindex，避免与首页重复。私人 API 不进索引，未知地址返回真正 404。提供 sitemap、社交分享图和本地字体。`llms.txt` 只是站点说明，不视作排名机制；GEO 没有流量保证或特殊 schema 捷径。公开 FAQ 是可读内容，没有依赖 FAQ 富结果。
 
 示例页与场景页各自有独立内容（真实作品、实际提示词、具体步骤），不是换关键词的模板页。sitemap 带图片条目，便于图片搜索收录。不批量制造只有关键词不同的页面。不公开孩子照片、作品或昵称；文件分享由用户决定。初版面向英语市场，多语言需要真正翻译内容与界面后再设置 hreflang。
 

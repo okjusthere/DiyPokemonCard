@@ -6,7 +6,8 @@ import {uid, hash, getAccount, reserve, refund, complete, consumeToken, sessionF
 import {validPurchase, finalize, webhook} from '../worker/billing.mjs';
 import worker from '../worker/index.mjs';
 import {generateArtwork, franchiseName, creativeIdea} from '../worker/ai.mjs';
-import {recordPageview, isHumanPageview, sourceOf} from '../worker/metrics.mjs';
+import {recordPageview, isHumanPageview, sourceOf, isBot, isInternal, landingOf} from '../worker/metrics.mjs';
+import {pruneIdleAccounts} from '../worker/index.mjs';
 import {weeklyReport, sendWeeklyReport} from '../worker/report.mjs';
 let mf,db;
 before(async()=>{
@@ -53,9 +54,9 @@ test('restore token is single-use; session cookies do not grant another account�
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
  const env={DB:db,TRIAL_CREDITS:'1',BASE_URL:'https://diypokecard.com'};
  const gen=uid('gen');await reserve(db,a.id,gen,'design');await complete(db,a,gen,'design','private/key',{name:'Private'});
- const response=await worker.fetch(new Request(`https://diypokecard.com/api/card/art/${gen}`),env,{});
+ const response=await worker.fetch(new Request(`https://diypokecard.com/api/card/art/${gen}`,{headers:{'user-agent':'Mozilla/5.0 Safari'}}),env,{});
  assert.equal(response.status,404);assert.equal(response.headers.get('cache-control'),'private, no-store');
- const csrf=await worker.fetch(new Request('https://diypokecard.com/api/account',{method:'POST',headers:{origin:'https://attacker.example','content-type':'application/json'},body:'{}'}),env,{});
+ const csrf=await worker.fetch(new Request('https://diypokecard.com/api/account',{method:'POST',headers:{origin:'https://attacker.example','content-type':'application/json','user-agent':'Mozilla/5.0 Safari'},body:'{}'}),env,{});
  assert.equal(csrf.status,403);
  const getLink=await worker.fetch(new Request(`https://diypokecard.com/api/account/restore/consume?token=${id}.${secret}`),env,{});
  assert.match(await getLink.text(),/method="post"/i);
@@ -189,4 +190,79 @@ test('new studio events are accepted and idea pages count as landing pages',asyn
  const before=await metricTotal('landing:/ideas/nova');
  await recordPageview(new Request('https://diypokecard.com/ideas/nova',{headers:{'sec-fetch-dest':'document','user-agent':'Mozilla/5.0 Firefox','cf-connecting-ip':'198.51.100.77'}}),{DB:db},'/ideas/nova');
  assert.equal(await metricTotal('landing:/ideas/nova'),before+1);
+});
+
+test('crawlers never get accounts, and the owner cookie keeps a browser out of the counts',async()=>{
+ const env={DB:db,BASE_URL:'https://diypokecard.com'};
+ const before=Number((await db.prepare('SELECT COUNT(*) AS n FROM accounts').first()).n);
+ for(const ua of ['curl/8.7.1','Mozilla/5.0 (l9scan/2.0; +https://leakix.net)','metabase-cve-2026-72898-detect/1.0','Mozilla/5.0 (compatible; Meta-WebIndexer/1.0)']){
+  assert.equal(isBot(ua),true,ua);
+  const r=await worker.fetch(new Request('https://diypokecard.com/api/session',{headers:{'user-agent':ua}}),env,{});
+  assert.equal(r.status,200);assert.equal((await r.json()).account,null);assert.equal(r.headers.get('set-cookie'),null);
+  assert.equal((await worker.fetch(new Request('https://diypokecard.com/api/credits',{headers:{'user-agent':ua}}),env,{})).status,403);
+ }
+ for(const ua of ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1','Mozilla/5.0 (Linux; Android 11; CUBOT X30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36',''])assert.equal(isBot(ua),false,ua||'(empty)');
+ assert.equal(isHumanPageview(new Request('https://diypokecard.com/',{headers:{'sec-fetch-dest':'document'}})),false,'no user agent is not counted as a visit');
+ assert.equal(Number((await db.prepare('SELECT COUNT(*) AS n FROM accounts').first()).n),before);
+ const human=await worker.fetch(new Request('https://diypokecard.com/api/session',{headers:{'user-agent':'Mozilla/5.0 Safari/605.1'}}),env,{});
+ assert.match(human.headers.get('set-cookie')||'',/dpc_session=/);
+ const internal=await worker.fetch(new Request('https://diypokecard.com/api/internal/exclude'),env,{});
+ assert.match(internal.headers.get('set-cookie'),/dpc_internal=1; Max-Age=31536000/);assert.match(internal.headers.get('x-robots-tag')||'',/noindex/);
+ assert.equal(isInternal(new Request('https://diypokecard.com/',{headers:{cookie:'dpc_session=x; dpc_internal=1'}})),true);
+ const png=await metricTotal('ui:png');
+ assert.equal((await worker.fetch(new Request('https://diypokecard.com/api/event?e=png',{method:'POST',headers:{origin:'https://diypokecard.com',cookie:'dpc_internal=1'}}),env,{})).status,204);
+ assert.equal(await metricTotal('ui:png'),png);
+});
+test('events carry a bounded landing page and campaign; pageviews classify paid, keepsake and campaign links',async()=>{
+ const env={DB:db,BASE_URL:'https://diypokecard.com',CAMPAIGNS:'pin-oct, xmas'};
+ const before=await Promise.all(['ui:save','ui:save@/pet-trading-card','ui:save#pin-oct','campaign:pin-oct','channel:pinterest','source:paid','source:keepsake'].map(metricTotal));
+ await worker.fetch(new Request('https://diypokecard.com/api/event?e=save&l=%2Fpet-trading-card&c=pin-oct',{method:'POST',headers:{origin:'https://diypokecard.com'}}),env,{});
+ await worker.fetch(new Request('https://diypokecard.com/api/event?e=save&l=javascript:alert(1)&c=DROP%20TABLE',{method:'POST',headers:{origin:'https://diypokecard.com'}}),env,{});
+ const browser={'sec-fetch-dest':'document','user-agent':'Mozilla/5.0 Safari','cf-connecting-ip':'203.0.113.50'};
+ await recordPageview(new Request('https://diypokecard.com/pet-trading-card?utm_source=pinterest&utm_medium=paid_social&utm_campaign=Pin-Oct',{headers:browser}),env,'/pet-trading-card');
+ await recordPageview(new Request('https://diypokecard.com/?ref=keepsake',{headers:{...browser,'cf-connecting-ip':'203.0.113.51'}}),env,'/');
+ await recordPageview(new Request('https://diypokecard.com/?utm_campaign=not-listed',{headers:{...browser,'cf-connecting-ip':'203.0.113.52'}}),env,'/');
+ assert.equal(sourceOf(new Request('https://diypokecard.com/?gclid=abc',{headers:{referer:'https://www.google.com/'}})),'paid');
+ assert.equal(sourceOf(new Request('https://diypokecard.com/?fbclid=IwAR0abc',{headers:{referer:'https://l.facebook.com/'}})),'social','organic Facebook clicks carry fbclid');
+ assert.equal(sourceOf(new Request('https://diypokecard.com/?fbclid=IwAR0abc&utm_medium=paid_social',{headers:{referer:'https://l.facebook.com/'}})),'paid');
+ assert.equal(typeof landingOf(['/pet-trading-card']),'string','D1 only receives strings');assert.equal(landingOf({}),'');assert.equal(landingOf('/pet-trading-card'),'/pet-trading-card');assert.equal(landingOf('/not-a-page'),'');
+ const site=(await import('../lib/site.js')).default;
+ for(const route of ['/','/studio','/privacy.html','/terms.html',...Object.keys(site.pages),...site.ideaSlugs.map(slug=>`/ideas/${slug}`)])assert.equal(landingOf(route),route,route);
+ const after=await Promise.all(['ui:save','ui:save@/pet-trading-card','ui:save#pin-oct','campaign:pin-oct','channel:pinterest','source:paid','source:keepsake'].map(metricTotal));
+ assert.deepEqual(after.map((n,i)=>n-before[i]),[2,1,1,1,1,1,1]);
+ const junk=await db.prepare("SELECT COUNT(*) AS n FROM daily_metrics WHERE name LIKE '%javascript%' OR name LIKE '%DROP%' OR name LIKE '%not-listed%'").first();assert.equal(Number(junk.n),0);
+});
+test('three accounts per connection keep their free picture; the fourth is sent to the packs with a code',async()=>{
+ await db.prepare('DELETE FROM rate_limits').run();
+ const env=aiEnv({TRIAL_PER_CONNECTION:'3'}),ip=uid('ip'),data=()=>({requestId:uid('gen'),color:'blue',animal:'fox',power:'ice'});
+ for(let i=0;i<3;i++)await generateArtwork(null,env,await account(),data(),false,ip);
+ const fourth=await account(),blocked=await metricTotal('ai_trial_ip_blocked');
+ await assert.rejects(generateArtwork(null,env,fourth,data(),false,ip),e=>e.status===429&&e.code==='trial_used');
+ assert.equal((await getAccount(db,fourth.id)).promo_credits_remaining,1);
+ assert.equal(await metricTotal('ai_trial_ip_blocked'),blocked+1);
+ const noCredit=await metricTotal('ai_no_credit');
+ const r=await worker.fetch(new Request('https://diypokecard.com/api/ai/pokemon-create',{method:'POST',headers:{origin:'https://diypokecard.com','content-type':'application/json','user-agent':'Mozilla/5.0 Safari'},body:JSON.stringify({color:'blue',animal:'fox',power:'ice'})}),{...env,AI_ENABLED:'true',TRIAL_CREDITS:'0',BASE_URL:'https://diypokecard.com'},{});
+ assert.equal(r.status,402);assert.equal(await metricTotal('ai_no_credit'),noCredit+1);
+ const errors=await metricTotal('checkout_error');
+ const bad=await worker.fetch(new Request('https://diypokecard.com/api/checkout',{method:'POST',headers:{origin:'https://diypokecard.com','content-type':'application/json','user-agent':'Mozilla/5.0 Safari'},body:'{}'}),{...env,BASE_URL:'https://diypokecard.com'},{});
+ assert.equal(bad.status,503);assert.equal(await metricTotal('checkout_error'),errors,'expected rejections are not checkout errors');
+ assert.equal((await bad.json()).code,undefined);
+});
+test('idle anonymous accounts are pruned; anything with activity, email or a trial stays',async()=>{
+ const idle=await account(),trial=await account(),mailed=await account(),fresh=await account();
+ await db.prepare("UPDATE accounts SET created_at=datetime('now','-5 days') WHERE id IN (?,?,?)").bind(idle.id,trial.id,mailed.id).run();
+ await db.prepare('INSERT INTO trial_claims(identity_hash,account_id) VALUES(?,?)').bind(uid('ip')+':2030-01-01:'+trial.id,trial.id).run();
+ await db.prepare('UPDATE accounts SET email=? WHERE id=?').bind(uid('e')+'@example.com',mailed.id).run();
+ await db.prepare('INSERT INTO sessions(id,account_id,secret_hash) VALUES(?,?,?)').bind(uid('sess'),idle.id,'x').run();
+ await pruneIdleAccounts(db);
+ assert.equal(await getAccount(db,idle.id),null);
+ for(const a of [trial,mailed,fresh])assert.ok(await getAccount(db,a.id),a.id);
+ assert.equal(Number((await db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE account_id=?').bind(idle.id).first()).n),0);
+});
+test('checkout stores landing and campaign only when they are well-formed, and the report shows paywall and attribution rows',async()=>{
+ const a=await account(0);
+ await db.prepare("INSERT INTO checkout_sessions(stripe_session_id,account_id,plan,credits_added,status,created_at,completed_at,landing,campaign) VALUES('cs_test_attr',?,'family40',40,'completed','2031-03-03 10:00:00','2031-03-03 10:01:00','/pet-trading-card','pin-oct')").bind(a.id).run();
+ await db.batch([['ai_no_credit',4],['ai_trial_ip_blocked',2],['ui:credits_open_paywall',5],['campaign:pin-oct',30],['source:paid',12],['ui:generate_under5s',7]].map(([name,n])=>db.prepare('INSERT INTO daily_metrics(day,name,count) VALUES(?,?,?)').bind('2031-03-03',name,n)));
+ const report=await weeklyReport(db,new Date('2031-03-07T13:00:00Z'));
+ for(const line of ['额度用完被拒（402）：4','同一网络试用已用（429）：2','付费墙打开购买窗口：5','活动 pin-oct：30','来源 · 付费广告：12','订单 · 活动 pin-oct：1','订单 · 入口页 /pet-trading-card：1','生成 <5 秒：7'])assert.ok(report.text.includes(line),line);
 });

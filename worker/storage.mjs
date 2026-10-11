@@ -1,4 +1,5 @@
 // D1 operations keep balance changes inside SQL transactions.
+import { isBot } from './metrics.mjs';
 export const uid = prefix => `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`;
 export async function hash(value) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 export function problem(message, status=400) { return Object.assign(new Error(message), { status }); }
@@ -24,6 +25,8 @@ export async function sessionFor(request,env){
  if(match){const [id,secret]=match[1].split('.');const row=await env.DB.prepare("SELECT * FROM sessions WHERE id=? AND last_seen_at>datetime('now','-30 days')").bind(id).first();
   if(row&&row.secret_hash===await hash(secret)){const account=await getAccount(env.DB,row.account_id);if(account){await env.DB.prepare("UPDATE sessions SET last_seen_at=datetime('now') WHERE id=?").bind(id).run();return {account};}}
  }
+ // Crawlers and scanners that render pages must not create accounts or receive trial credits.
+ if(isBot(request.headers.get('user-agent')))return {account:null,bot:true};
  const ip=request.headers.get('cf-connecting-ip')||'local';await rate(env.DB,`session:${await hash(ip)}`,20,3600);
  const id=uid('acct');
  await env.DB.prepare('INSERT INTO accounts(id,promo_credits_remaining) VALUES(?,?)').bind(id,Math.min(2,Math.max(0,Number(env.TRIAL_CREDITS)||0))).run();

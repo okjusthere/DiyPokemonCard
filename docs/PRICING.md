@@ -31,4 +31,6 @@ This is a launch hypothesis: the smaller first pack lowers the commitment for pa
 
 Using a deliberately higher planning cost of $0.08 per successful generation and [Stripe domestic card pricing](https://stripe.com/en-us/pricing) of 2.9% + $0.30, estimated contribution before tax, hosting, free trials and support is about 67%, 62% and 60% for these packs. International cards, currency conversion, disputes, refunds and tax treatment can change these figures.
 
+A `mini5` pack (5 artworks, $1.99, ≈62% contribution after the fixed Stripe fee) is defined in `lib/pricing.json` with `active: false`. Enable it only after the paywall counters (`ai_no_credit` + `ai_trial_ip_blocked`) show at least 50 hits; if those 50 hits produce no purchases at all, the problem is value rather than pack size, and the price should not be moved again. When enabling it, create the Stripe price, set `STRIPE_PRICE_MINI5`, mark Starter "Most popular" and give "Best value" to Family. The Terms and About pages render pack prices from `pricing.json`, so they follow automatically.
+
 Do not offer unlimited AI. Start with an explicit global usage ceiling and review actual inference failure rate, cost per success, trial-to-purchase conversion, repeat use and support burden before changing pack sizes or adding a subscription.

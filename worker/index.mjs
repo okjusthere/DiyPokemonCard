@@ -2,7 +2,7 @@ import { hash, uid, clean, emailOf, validEmail, problem, sessionFor, issueSessio
 import { checkout, webhook, stripeClient, finalize, validPurchase, plans } from './billing.mjs';
 import { sendAccessEmail, restorePage } from './email.mjs';
 import { generateArtwork } from './ai.mjs';
-import { clientEvents, isHumanPageview, recordPageview, pruneVisitors, track } from './metrics.mjs';
+import { clientEvents, isHumanPageview, isInternal, recordPageview, pruneVisitors, track, landingOf, campaignOf } from './metrics.mjs';
 import { sendWeeklyReport, WEEKLY_CRON } from './report.mjs';
 const cookie=(token,secure=true)=>`dpc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure?'; Secure':''}`;
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8'}});
@@ -30,8 +30,16 @@ async function api(request,env,ctx){
  // Feature counts are handled before sessions so a beacon never creates an anonymous account.
  if(path==='/api/event'&&request.method==='POST'){
   const name=url.searchParams.get('e');if(!clientEvents.has(name))throw problem('Unknown event.');
-  await rate(env.DB,`event:${ipHash}`,300,3600);await track(env.DB,`ui:${name}`);
+  if(isInternal(request))return new Response(null,{status:204});
+  await rate(env.DB,`event:${ipHash}`,300,3600);
+  const landing=landingOf(url.searchParams.get('l')),campaign=campaignOf(url.searchParams.get('c'),env);
+  await track(env.DB,`ui:${name}`,...(landing?[`ui:${name}@${landing}`]:[]),...(campaign?[`ui:${name}#${campaign}`]:[]));
   return new Response(null,{status:204});
+ }
+ // The owner's own browsers opt out of usage counts. Anyone may set it; it only removes a visitor from the totals.
+ if(path==='/api/internal/exclude'&&request.method==='GET'){
+  const off=url.searchParams.get('off')==='1';
+  return new Response(`<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Usage counting</title><p style="font:16px system-ui;max-width:420px;margin:15vh auto">${off?'This browser is counted again.':'This browser is now excluded from usage counts on this site.'} <a href="/">Back to the studio</a></p>`,{headers:{'content-type':'text/html; charset=utf-8','set-cookie':`dpc_internal=${off?'0; Max-Age=0':'1; Max-Age=31536000'}; Path=/; SameSite=Lax${url.protocol==='https:'?'; Secure':''}`}});
  }
  if(path==='/api/account/restore/consume'){
   if(request.method==='GET')return new Response(restorePage(url),{headers:{'content-type':'text/html; charset=utf-8'}});
@@ -49,11 +57,12 @@ async function api(request,env,ctx){
   const account=await getAccountByEmail(env.DB,email);if(account)await sendAccessEmail(env,account);
   return json({ok:true,message:'If that email has an account, a sign-in link is on the way.'});
  }
- const session=await sessionFor(request,env);let account=session.account,response;
+ const session=await sessionFor(request,env),internal=isInternal(request);let account=session.account,response;
  const withCookie=res=>{if(session.token)res.headers.append('set-cookie',cookie(session.token,url.protocol==='https:'));return res;};
  try{
   const ai=env.AI_ENABLED==='true'&&!!env.AI&&!!env.ARTWORK;
   const emailReady=env.EMAIL_ENABLED==='true'&&!!env.EMAIL;
+  if(!account&&path!=='/api/session')throw problem('Automated clients cannot use the studio.',403);
   if(path==='/api/session'&&request.method==='GET')response=json({account:publicAccount(account),restoreAvailable:emailReady,capabilities:{ai,aiPhoto:ai,payments:ai&&emailReady&&env.PAYMENTS_ENABLED==='true'&&!!env.STRIPE_SECRET_KEY},plans:Object.entries(plans).filter(([,p])=>p.active).map(([id,p])=>({id,...p}))});
   else if(path==='/api/credits'&&request.method==='GET')response=json(publicAccount(account));
   else if(path==='/api/account'&&request.method==='POST')response=json(publicAccount(await profile(env.DB,account,await bodyJSON(request))));
@@ -84,8 +93,22 @@ async function api(request,env,ctx){
    await rate(env.DB,`card-email:${account.id}`,5,3600);account=await profile(env.DB,account,data);if(!account.email)throw problem('Enter an adult email address.');
    await sendAccessEmail(env,account,data.generationId);response=json({emailStatus:'sent'});
   }else response=json({error:'API endpoint not found.'},404);
- }catch(error){response=json({error:error.status?error.message:'That request did not finish. Please try again.'},error.status||500);if(!error.status)console.error('API failure',path,error.name);}
+ }catch(error){
+  // Only codes set by this app are forwarded; library errors carry their own `code` that must not leak.
+  response=json({error:error.status?error.message:'That request did not finish. Please try again.',...(error.status&&error.code?{code:error.code}:{})},error.status||500);
+  if(!error.status)console.error('API failure',path,error.name);
+  // Paywall hits and unexpected checkout failures are the two numbers a pricing decision needs; the owner's own browsers are left out.
+  if(!internal&&path.startsWith('/api/ai/')&&error.status===402)await track(env.DB,'ai_no_credit');
+  if(!internal&&path==='/api/checkout'&&!error.status)await track(env.DB,'checkout_error');
+ }
  return withCookie(response);
+}
+// Anonymous accounts that never did anything (crawlers that executed the page script, or a visit that only looked) are dropped after three days.
+export async function pruneIdleAccounts(db){
+ await db.batch([
+  db.prepare(`DELETE FROM accounts WHERE id IN (SELECT a.id FROM accounts a WHERE a.email IS NULL AND a.created_at<datetime('now','-3 days') AND NOT EXISTS(SELECT 1 FROM credit_ledger l WHERE l.account_id=a.id) AND NOT EXISTS(SELECT 1 FROM generation_attempts g WHERE g.account_id=a.id) AND NOT EXISTS(SELECT 1 FROM checkout_sessions c WHERE c.account_id=a.id) AND NOT EXISTS(SELECT 1 FROM trial_claims t WHERE t.account_id=a.id) AND NOT EXISTS(SELECT 1 FROM auth_tokens k WHERE k.account_id=a.id) LIMIT 500)`),
+  db.prepare('DELETE FROM sessions WHERE account_id NOT IN (SELECT id FROM accounts)')
+ ]);
 }
 export default {
  async fetch(request,env,ctx){
@@ -101,7 +124,7 @@ export default {
    if(response.status===404){assetURL.pathname='/404.html';response=await env.ASSETS.fetch(new Request(assetURL));response=new Response(response.body,{status:404,headers:response.headers});}
    response=secure(response);if(response.headers.get('content-type')?.includes('text/html')){
     response.headers.set('cache-control','no-cache');
-    if(response.status===200&&env.DB&&isHumanPageview(request))ctx?.waitUntil?.(recordPageview(request,env,url.pathname));
+    if(response.status===200&&env.DB&&isHumanPageview(request)&&!isInternal(request))ctx?.waitUntil?.(recordPageview(request,env,url.pathname));
    }
    return response;
   }catch(error){if(!error.status)console.error('Worker failure',error.name);return secure(json({error:error.status?error.message:'The studio service is temporarily unavailable.'},error.status||500),true);}
@@ -112,5 +135,6 @@ export default {
   for(const row of stale.results)await refund(env.DB,row.request_id);
   await env.DB.batch([env.DB.prepare("DELETE FROM trial_claims WHERE claimed_at<datetime('now','-2 days')"),env.DB.prepare('DELETE FROM rate_limits WHERE expires_at<?').bind(Math.floor(Date.now()/1000)),env.DB.prepare("DELETE FROM auth_tokens WHERE expires_at<datetime('now','-1 day')"),env.DB.prepare("DELETE FROM sessions WHERE last_seen_at<datetime('now','-60 days')")]);
   await pruneVisitors(env.DB);
+  await pruneIdleAccounts(env.DB);
  }
 };

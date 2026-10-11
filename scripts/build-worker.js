@@ -10,6 +10,7 @@ for (const route of Object.keys(site.pages)) html[route] = site.article(route, o
 for (const slug of site.ideaSlugs) html[`/ideas/${slug}`] = site.ideaPage(slug, options);
 fs.mkdirSync(path.join(dest, 'ideas'), { recursive: true });
 for (const [route, content] of Object.entries(html)) fs.writeFileSync(path.join(dest, route === '/' ? 'index.html' : route.endsWith('.html') ? route.slice(1) : route.slice(1) + '.html'), content);
+require('./build-template-pdf').writeTemplates(path.join(dest, 'downloads'));
 fs.writeFileSync(path.join(dest, 'sitemap.xml'), site.sitemap(options.origin));
 fs.writeFileSync(path.join(dest, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${options.origin}/sitemap.xml\n`);
 console.log(`Built ${Object.keys(html).length} pages and local assets for Cloudflare Workers.`);

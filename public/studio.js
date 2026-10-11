@@ -29,9 +29,21 @@
   const makeId = () => `card_${crypto.randomUUID().replace(/-/g, '')}`;
   // Aggregate feature counts: only an event name is sent, never card text, names or photos. Once per page load.
   const tracked = new Set();
+  // The first page of this visit and an optional campaign tag from one of our own links, kept for this tab only.
+  const attribution = (() => {
+    const out = { landing: '', campaign: '' };
+    try {
+      const params = new URLSearchParams(location.search), campaign = (params.get('utm_campaign') || '').toLowerCase();
+      if (!sessionStorage.getItem('dpc-landing')) sessionStorage.setItem('dpc-landing', location.pathname);
+      if (/^[a-z0-9][a-z0-9-]{1,39}$/.test(campaign)) sessionStorage.setItem('dpc-campaign', campaign);
+      out.landing = sessionStorage.getItem('dpc-landing') || ''; out.campaign = sessionStorage.getItem('dpc-campaign') || '';
+    } catch { /* Private browsing without storage still works; events simply carry no landing page. */ }
+    return out;
+  })();
   function track(name) {
     if (tracked.has(name)) return; tracked.add(name);
-    try { navigator.sendBeacon?.(`/api/event?e=${name}`); } catch { /* Counting must never interrupt creating. */ }
+    const query = `e=${name}${attribution.landing ? `&l=${encodeURIComponent(attribution.landing)}` : ''}${attribution.campaign ? `&c=${attribution.campaign}` : ''}`;
+    try { navigator.sendBeacon?.(`/api/event?${query}`); } catch { /* Counting must never interrupt creating. */ }
   }
 
   function toast(message, duration = 3500) {
@@ -41,12 +53,17 @@
   }
   function showDialog(id) {
     const dialog = $(id); if (!dialog.open) dialog.showModal();
-    if (id === '#account-dialog') track('credits_open');
   }
-  function openCredits(reason = '') {
-    const empty = reason === 'empty';
-    $('#account-title').textContent = empty ? 'Keep the AI magic going.' : 'AI credits';
-    $('#account-subtitle').textContent = empty ? 'You’ve used your AI credits. Pick a one-time pack to make more AI pictures. Editing, downloads and printing stay free.' : 'Optional AI artwork. Editing, downloads and printing are always free.';
+  const creditCopy = {
+    empty: ['Keep the AI magic going.', 'You’ve used your AI credits. Pick a one-time pack to make more AI pictures. Editing, downloads and printing stay free.'],
+    trial_used: ['This connection’s free pictures are used up today.', 'Another device on your network already used today’s free AI pictures. A one-time pack keeps everyone going; editing, downloads and printing stay free.'],
+    menu: ['AI credits', 'Optional AI artwork. Editing, downloads and printing are always free.'],
+  };
+  async function openCredits(reason = 'menu') {
+    const [title, subtitle] = creditCopy[reason] || creditCopy.menu;
+    $('#account-title').textContent = title; $('#account-subtitle').textContent = subtitle;
+    if (!session) { try { session = await request('/api/session'); } catch { /* The dialog still explains the packs. */ } updateSessionUI(); }
+    track(reason === 'menu' ? 'credits_open_menu' : 'credits_open_paywall');
     showDialog('#account-dialog');
   }
   function fitText(el) { if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight + 2, 220)}px`; }
@@ -69,7 +86,7 @@
     const response = await fetch(url, data === undefined ? { credentials: 'same-origin' } : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     let payload;
     try { payload = await response.json(); } catch { throw new Error('The server could not respond. Please try again.'); }
-    if (!response.ok) { const error = new Error(payload.error === 'no_credits' ? 'You have used your AI credits. Add a pack, or keep creating in the free studio.' : payload.error || 'Something did not finish. Please try again.'); error.status = response.status; throw error; }
+    if (!response.ok) { const error = new Error(payload.error === 'no_credits' ? 'You have used your AI credits. Add a pack, or keep creating in the free studio.' : payload.error || 'Something did not finish. Please try again.'); error.status = response.status; error.code = payload.code || ''; throw error; }
     return payload;
   }
 
@@ -135,7 +152,6 @@
     $('#ai-reference-card').hidden = !photoArt; $('#ai-photo-pick').hidden = !!photoArt;
     if (!$('#mini-preview').hidden) $('#mini-preview').innerHTML = cardMarkup(card, 'mini');
     if (photoArt) $('#ai-reference-image').src = photoArt.art;
-    $('#email-card-section').hidden = !(card.generationId && session?.restoreAvailable);
     $('#preview-hint').lastChild.textContent = view === '3d' ? ' Move across your card. Catch a little sparkle.' : ' A clear, steady view of your creation.';
   }
   function changeMode(next) {
@@ -155,6 +171,7 @@
   function setAiKind(kind) {
     const photo = kind === 'photo';
     $('#ai-kind').value = photo ? 'photo' : 'creature';
+    $$('[data-ai-kind]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.aiKind === (photo ? 'photo' : 'creature'))));
     $('#ai-creature-fields').hidden = photo; $('#ai-photo-fields').hidden = !photo;
     $('#ai-prompt-label').textContent = photo ? 'Add a direction (optional)' : 'Describe your idea';
     $('#ai-prompt').placeholder = photo ? 'For example: in a mossy jungle at sunrise' : 'A brave broccoli knight with a leaf cape in a tiny vegetable kingdom…';
@@ -208,8 +225,20 @@
   }
   function photoToAi() {
     changeMode('ai'); setAiKind('photo'); track('photo_to_ai');
-    const consent = $('#ai-photo-consent');
-    consent.closest('label').scrollIntoView({behavior:smooth(),block:'center'}); consent.focus({preventScroll:true});
+    const button = $('#generate-button');
+    button.scrollIntoView({behavior:smooth(),block:'center'}); button.focus({preventScroll:true});
+  }
+  // The full permission text is shown once, at the moment it matters, instead of a pre-ticked wall of text.
+  const artKey = art => `${art.length}:${art.slice(-48)}`;
+  function askPhotoConsent() {
+    const consent = $('#ai-photo-consent'), key = artKey(photoArt?.art || '');
+    if (consent.checked && consent.dataset.art === key) return Promise.resolve(true);
+    consent.checked = false;
+    return new Promise(resolve => {
+      const dialog = $('#consent-dialog'), done = agreed => { dialog.removeEventListener('close', onClose); if (agreed) { consent.checked = true; consent.dataset.art = key; } resolve(agreed); };
+      const onClose = () => done(dialog.returnValue === 'agree');
+      dialog.addEventListener('close', onClose); dialog.returnValue = ''; dialog.showModal();
+    });
   }
   $('#idea-start-form')?.addEventListener('submit', event => {
     event.preventDefault(); beginIdea($('#hero-idea').value.trim());
@@ -234,8 +263,8 @@
       const unedited = card.source === 'ai' || examples.some(e => e.slug === card.example && e.name === card.name) || TEMPLATES.some(t => t.name === card.name);
       update({ ...photoArt, ...(unedited ? { name: 'My little legend', attack: 'Big heart', ability: 'A one-of-a-kind companion with a story only you can tell.' } : {}), source:'photo', example:'', prompt:'', id: '', generationId: '', zoom: 1, offsetX: 50, offsetY: 50 });
       track('photo');
-      if (mode === 'ai') { setAiKind('photo'); toast('Your picture is ready. Confirm permission below, then press Generate.', 5000); }
-      else if (photoIntent === 'ai') { photoToAi(); toast('Your picture is on the card. Confirm permission, then press Generate.', 5000); }
+      if (mode === 'ai') { setAiKind('photo'); toast('Your picture is ready. Press Generate; an adult confirms permission first.', 5000); }
+      else if (photoIntent === 'ai') { photoToAi(); toast('Your picture is on the card. Press Generate; an adult confirms permission first.', 5000); }
       else toast('Your picture is on the card. Keep it as it is, or turn it into AI art.', 5000);
     } catch (e) { fail(e.message); }
     finally { input.value = ''; }
@@ -275,7 +304,7 @@
       const markup = cardMarkup(snapshot, 'keepsake');
       const css = `*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#f4f3f8;color:#252938;font:15px system-ui,sans-serif;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:35px 20px}h1{font-size:27px;margin:0 0 10px;text-align:center}p{text-align:center;color:#6e7287;font-size:12px;line-height:1.7;max-width:360px}.stage{width:min(340px,76vw);margin:25px 0;perspective:1100px;touch-action:pan-y}.trading-card{width:100%;aspect-ratio:63/88;position:relative;--rx:0deg;--ry:0deg;--mx:50%;--my:50%;filter:drop-shadow(0 18px 20px #24283c30)}.card-rotator{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(var(--rx)) rotateY(var(--ry));transition:transform .25s}.is-flipped .card-rotator{transform:rotateX(var(--rx)) rotateY(calc(var(--ry) + 180deg))}.card-front,.card-back{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:18px;overflow:hidden}.card-front{transform:translateZ(1px)}.card-front svg{display:block;width:100%;height:100%}.card-shine{position:absolute;inset:2%;border-radius:12px;background:repeating-linear-gradient(115deg,#faaecc00,#ffee9855 15%,#93efed55 30%,#c6bcf644 45%,#faaecc00 60%);background-size:240% 240%;background-position:var(--mx) var(--my);mix-blend-mode:color-dodge;opacity:.5;pointer-events:none}[data-finish=matte] .card-shine{display:none}.card-back{transform:rotateY(180deg);background:#4358d9;border:7px solid #f0d988;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;color:#fff3bc;gap:27px}.back-star{font-size:75px}.card-back strong{font-size:26px;line-height:1.15}.back-brand{font-size:9px;letter-spacing:3px}.actions{display:flex;gap:10px;align-items:center}button,a{font:inherit;font-size:12px;border:1px solid #d7d9e4;background:white;color:#3847a8;border-radius:10px;padding:12px 16px;cursor:pointer;text-decoration:none}button:focus-visible,a:focus-visible,.stage:focus-visible{outline:3px solid #4358d9;outline-offset:5px}.small{font-size:10px}@media(prefers-reduced-motion:reduce){*{transition:none!important}}`;
       const js = `const stage=document.querySelector('.stage'),card=document.querySelector('.trading-card');let flat=matchMedia('(prefers-reduced-motion: reduce)').matches;function tilt(x,y){card.style.setProperty('--rx',((.5-y)*18)+'deg');card.style.setProperty('--ry',((x-.5)*22)+'deg');card.style.setProperty('--mx',(x*100)+'%');card.style.setProperty('--my',(y*100)+'%')}function flip(){card.classList.toggle('is-flipped')}stage.addEventListener('pointermove',e=>{if(flat)return;const r=stage.getBoundingClientRect();tilt(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)))});stage.addEventListener('pointerleave',()=>tilt(.5,.5));stage.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='f'){e.preventDefault();flip()}if(!flat&&e.key.startsWith('Arrow')){e.preventDefault();tilt(e.key==='ArrowLeft'?.1:e.key==='ArrowRight'?.9:.5,e.key==='ArrowUp'?.1:e.key==='ArrowDown'?.9:.5)}});document.querySelector('#flip').onclick=flip;const mode=document.querySelector('#flat');function label(){mode.textContent=flat?'Try 3D':'Use 2D';mode.setAttribute('aria-pressed',String(flat))}mode.onclick=()=>{flat=!flat;tilt(.5,.5);label()};label();`;
-      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${esc(snapshot.name)} — My little legend</title><style>${css}</style></head><body><h1>${esc(snapshot.name)}</h1><p>Made by ${esc(snapshot.trainer)}. A little imagination, all their own.</p><div class="stage" tabindex="0" role="group" aria-label="Interactive card. Arrow keys tilt, F flips.">${markup}</div><div class="actions"><button id="flip">Flip card</button><button id="flat">Use 2D</button><a href="https://www.diypokecard.com/">Make your own ↗</a></div><p>Move across the card to catch the light.<br>On a keyboard: arrow keys to tilt, F to flip.</p><p class="small">An independent fan-made keepsake. Not an official Pokémon card.</p><script>${js}</script></body></html>`;
+      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${esc(snapshot.name)} — My little legend</title><style>${css}</style></head><body><h1>${esc(snapshot.name)}</h1><p>Made by ${esc(snapshot.trainer)}. A little imagination, all their own.</p><div class="stage" tabindex="0" role="group" aria-label="Interactive card. Arrow keys tilt, F flips.">${markup}</div><div class="actions"><button id="flip">Flip card</button><button id="flat">Use 2D</button><a href="https://diypokecard.com/?ref=keepsake">Make your own ↗</a></div><p>Move across the card to catch the light.<br>On a keyboard: arrow keys to tilt, F to flip.</p><p class="small">An independent fan-made keepsake. Not an official Pokémon card.</p><script>${js}</script></body></html>`;
       download(new Blob([html], { type: 'text/html' }), `${filename(snapshot.name)}-interactive.html`);
       toast('Interactive card saved. Open the HTML in a browser to tilt and flip.'); track('keepsake');
     } catch (e) { toast(e.message); } finally { exportBusy = false; }
@@ -285,7 +314,7 @@
     const exists = collection.some(c => c.id && c.id === input.id);
     if (collection.length >= 60 && !exists) throw new Error('Your local collection has 60 cards. Back it up and remove a card to make room.');
     const saved = normalizeCard({ ...input, id: input.id || makeId(), art: await embeddedArt(input) });
-    await dbWrite('cards', saved); await loadCollection(); track('save');
+    await dbWrite('cards', saved); await loadCollection(); track(tracked.has('save') ? 'save2' : 'save');
     if (input === card) { card = { ...saved }; persistDraft(); }
     return saved;
   }
@@ -297,12 +326,23 @@
     try { await loadCollection(); $('#collection-content').innerHTML = collectionMarkup(); showDialog('#collection-dialog'); }
     catch (e) { toast(e.message); }
   }
+  async function shareCard(c) {
+    if (exportBusy) return; exportBusy = true;
+    try {
+      const blob = await cardPng(c), file = new File([blob], `${filename(c.name)}-card.png`, { type: 'image/png' });
+      if (!navigator.canShare?.({ files: [file] })) { download(blob, file.name); toast('Sharing is not available here, so the PNG was downloaded instead.'); return; }
+      try { await navigator.share({ files: [file], title: `${c.name} — my little legend`, text: 'Made with diypokecard.com' }); track('share'); }
+      catch (e) { if (e.name !== 'AbortError') toast('The share sheet did not open. Tap Share again, or download the PNG.'); }
+    } catch (e) { toast(e.message); } finally { exportBusy = false; }
+  }
   function reveal(c, title = 'Meet your next favorite.') {
     revealCard = normalizeCard({ ...c, id: '' });
     $('#reveal-title').textContent = title; $('#reveal-stage').innerHTML = cardMarkup(revealCard, 'reveal');
     $('.trading-card', $('#reveal-stage')).classList.add('is-flipped');
     $('#reveal-stage').classList.remove('revealed'); $('#reveal-stage').setAttribute('aria-label', 'Reveal your card');
     $('#reveal-actions').hidden = true; $('#reveal-hint').textContent = 'Tap your card to reveal it.';
+    const emailSection = $('#reveal-email-section'); emailSection.hidden = !(revealCard.generationId && session?.restoreAvailable); emailSection.removeAttribute('open');
+    $('#reveal-email-status').textContent = ''; $('#reveal-email-status').classList.remove('inline-error'); $('#reveal-email-form').consent.checked = false;
     showDialog('#reveal-dialog');
   }
   function surprise() {
@@ -351,8 +391,8 @@
     $('#restore-button').disabled = !session?.restoreAvailable;
     if (!session?.capabilities?.payments) $('#account-error').textContent = 'AI packs are not available to buy yet. You can still create, download and print for free.';
     if (!session?.restoreAvailable) $('#restore-status').textContent = 'Email sign-in is temporarily unavailable. Please try again later.';
-    if (session?.account?.email) $('#account-email').value = session.account.email;
-    $('#email-card-section').hidden = !(card.generationId && session?.restoreAvailable);
+    if (session?.account?.email) { $('#account-email').value = session.account.email; if (!$('#reveal-email').value) $('#reveal-email').value = session.account.email; }
+    $('#reveal-email-section').hidden = !(revealCard?.generationId && session?.restoreAvailable);
   }
   async function aiPhotoData(art) {
     const image = await imageFrom(art), scale = Math.min(1, 480 / Math.max(image.width, image.height));
@@ -369,7 +409,7 @@
     const idea = $('#ai-prompt').value.trim();
     if (!pendingGeneration && ((!fromPhoto && idea.length < 8) || (idea && idea.length < 8))) { problem('Describe your idea in at least 8 characters, or use the creature ingredients below.'); $('#ai-prompt').focus(); return; }
     if (!pendingGeneration && fromPhoto && !photoArt) { problem('Choose a photo or drawing first.'); return; }
-    if (!pendingGeneration && fromPhoto && !$('#ai-photo-consent').checked) { problem('An adult needs to confirm permission for this picture first.'); $('#ai-photo-consent').focus(); return; }
+    if (!pendingGeneration && fromPhoto && !(await askPhotoConsent())) return;
     busy = true; updateSessionUI(); $('#generate-button').textContent = pendingGeneration ? 'Recovering your artwork…' : 'Imagining your new character…';
     $('#generating-title').textContent = pendingGeneration ? 'Recovering your artwork…' : fromPhoto ? 'Painting your picture…' : 'Imagining your idea…';
     $('.preview-stage').classList.add('is-generating');
@@ -384,7 +424,10 @@
         try { await dbWrite('settings', pendingGeneration, 'pending-generation'); } catch { /* Keep the retry ID in memory when local storage is unavailable. */ }
       }
       if (!pendingGeneration.result) {
+        const started = performance.now();
         const result = await request(pendingGeneration.request.path, pendingGeneration.request.data);
+        const seconds = (performance.now() - started) / 1000;
+        track(seconds < 5 ? 'generate_under5s' : seconds < 15 ? 'generate_under15s' : seconds < 30 ? 'generate_under30s' : 'generate_over30s');
         session.account = result.account;
         pendingGeneration = { before, result: { generationId: result.generationId, cardData: result.cardData, trainerData: result.trainerData } };
         try { await dbWrite('settings', pendingGeneration, 'pending-generation'); } catch { /* In-memory recovery remains available without storage. */ }
@@ -400,13 +443,14 @@
       pendingGeneration = null;
       try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* The downloaded artwork remains in the current draft. */ }
     } catch (e) {
-      $('#ai-error').textContent = e.message; if (e.status !== 402) toast(e.message, 6500);
+      const paywall = e.status === 402 ? 'empty' : e.code === 'trial_used' ? 'trial_used' : '';
+      $('#ai-error').textContent = e.message; if (!paywall) toast(e.message, 6500);
       if (pendingGeneration?.request && [400,402,410,413,415,429,502,503].includes(e.status)) {
         pendingGeneration = null;
         try { await dbWrite('settings', null, 'pending-generation', true); } catch { /* Clear the in-memory request too. */ }
       }
       try { session = await request('/api/session'); } catch { /* Keep the previously known balance until the connection returns. */ }
-      if (e.status === 402) openCredits('empty');
+      if (paywall) openCredits(paywall);
     } finally { busy = false; $('.preview-stage').classList.remove('is-generating'); updateSessionUI(); }
   }
   async function handleReturns() {
@@ -519,6 +563,14 @@
         case 'flip':flipped=!flipped;$('.trading-card',preview)?.classList.toggle('is-flipped',flipped);break;
         case 'download':await exportPng();break;
         case 'reveal-download':if(revealCard){await exportPng(revealCard);track('reveal_download');}break;
+        case 'reveal-share':if(revealCard)await shareCard(revealCard);break;
+        case 'share':await shareCard(card);break;
+        case 'reveal-another':{
+          closeDialog('#reveal-dialog');if(!preview)break;track('reveal_another');
+          changeMode('ai');
+          const prompt=$('#ai-prompt');$('.studio-shell').scrollIntoView({behavior:'instant'});prompt.focus({preventScroll:true});prompt.select();
+          toast('Change a few words for a sibling, a friend or another pet, then press Generate. One credit per picture.',6000);break;
+        }
         case 'reveal-edit':if(revealCard){if(preview){if(card.art!==revealCard.art){remember();card={...revealCard};flipped=false;changeMode(card.source==='photo'?'photo':card.source==='ai'?'ai':'pal');if(card.source==='template')photoArt=null;render();persistDraft();}closeDialog('#reveal-dialog');$('#card-name').scrollIntoView({behavior:smooth(),block:'center'});$('#card-name').focus({preventScroll:true});}else closeDialog('#reveal-dialog');}break;
         case 'photo-to-ai':photoToAi();break;
         case 'interactive':await exportInteractive();break;
@@ -535,12 +587,6 @@
         case 'replace-reference':$('#ai-photo-input').click();break;
         case 'build-idea':update({prompt:`An original ${$('#ai-color').value} ${$('#ai-animal').value} with ${$('#ai-power').value} powers, in a magical garden.`});$('#ai-prompt').focus();break;
         case 'generate':await generate();break;
-        case 'email-card':{
-          const email=$('#account-email').value;
-          if(!$('#checkout-form [name=consent]').checked){toast('Agree to the Terms and Privacy Policy before sending account email.');break;}
-          target.disabled=true;
-          try{const result=await request('/api/card/email',{generationId:card.generationId,email,displayName:card.trainer,acceptTerms:true,acceptPrivacy:true,photoParentConsent:!!$('#ai-photo-consent')?.checked});toast(result.emailStatus==='sent'?'Your private artwork link is on its way.':'Email could not be delivered. Download your PNG instead.');}finally{target.disabled=false;}break;
-        }
       }
     }catch(e){toast(e.message || 'That did not finish. Please try again.');}
   });
@@ -553,6 +599,14 @@
   $('#checkout-form').addEventListener('submit',async event=>{
     event.preventDefault();const button=$('#checkout-button');if(button.disabled)return;button.disabled=true;$('#account-error').textContent='';
     try{const data=new FormData(event.target);const result=await request('/api/checkout',{email:data.get('email'),plan:data.get('plan'),displayName:card.trainer,acceptTerms:true,acceptPrivacy:true});const next=new URL(result.url);if(next.protocol!=='https:'||next.hostname!=='checkout.stripe.com')throw new Error('The checkout link was not valid.');location.assign(next.href);}catch(e){$('#account-error').textContent=e.message;button.disabled=false;}
+  });
+  $('#reveal-email-form').addEventListener('submit',async event=>{
+    event.preventDefault();const form=event.target,button=$('#reveal-email-button'),status=$('#reveal-email-status');if(button.disabled||!revealCard?.generationId)return;
+    const email=$('#reveal-email').value.trim();status.classList.remove('inline-error');
+    if(!form.consent.checked){status.textContent='Tick the box to confirm you’re an adult and agree to the Terms and Privacy Policy.';status.classList.add('inline-error');return;}
+    button.disabled=true;status.textContent='';
+    try{const result=await request('/api/card/email',{generationId:revealCard.generationId,email,acceptTerms:true,acceptPrivacy:true,photoParentConsent:!!$('#ai-photo-consent')?.checked});const sent=result.emailStatus==='sent';status.textContent=sent?'Sent. The link in the email signs this AI account in on another device and reopens this artwork.':'The email could not be delivered. Download the PNG instead.';status.classList.toggle('inline-error',!sent);if(sent)track('email_card');}
+    catch(e){status.textContent=e.message;status.classList.add('inline-error');}finally{button.disabled=false;}
   });
   $('#restore-form').addEventListener('submit',async event=>{event.preventDefault();const button=$('#restore-button');if(button.disabled)return;button.disabled=true;try{const result=await request('/api/account/restore/request',{email:new FormData(event.target).get('email')});$('#restore-status').textContent=result.message;}catch(e){$('#restore-status').textContent=e.message;}finally{button.disabled=false;}});
 
@@ -577,7 +631,8 @@
     preview.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='f'){event.preventDefault();flipped=!flipped;$('.trading-card',preview).classList.toggle('is-flipped',flipped);}if(event.key.startsWith('Arrow')&&view==='3d'&&!reducedMotion.matches){event.preventDefault();tilt(event.key==='ArrowLeft'?.1:event.key==='ArrowRight'?.9:.5,event.key==='ArrowUp'?.1:event.key==='ArrowDown'?.9:.5);}});
     preview.addEventListener('focusout',()=>tilt());
     reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches){view='2d';render();}});
-    $('#ai-kind').addEventListener('change',()=>{setAiKind($('#ai-kind').value);persistDraft();});
+    $$('[data-ai-kind]').forEach(button=>button.addEventListener('click',()=>{setAiKind(button.dataset.aiKind);persistDraft();}));
+    if(!navigator.canShare)$$('[data-action="share"],[data-action="reveal-share"]').forEach(button=>button.hidden=true);
     try{const draft=await dbRead('settings','draft');if(draft?.card){card=normalizeCard(draft.card);mode=['pal','photo','ai'].includes(draft.mode)?draft.mode:'pal';view=!reducedMotion.matches&&draft.view==='3d'?'3d':'2d';if(draft.referencePhoto){const ref=normalizeCard(draft.referencePhoto);if(ref.art.startsWith('data:'))photoArt={art:ref.art,artWidth:ref.artWidth,artHeight:ref.artHeight};}if(draft.aiKind==='photo')setAiKind('photo');}}catch{ /* Downloads remain available when local storage is disabled. */ }
     try{const pending=await dbRead('settings','pending-generation');if(/^gen_[a-f0-9]{32}$/.test(pending?.result?.generationId||'')){pendingGeneration={before:normalizeCard(pending.before),result:pending.result};mode='ai';}else if(/^gen_[a-f0-9]{32}$/.test(pending?.request?.data?.requestId||'')&&['/api/ai/pokemon-create','/api/ai/pokemon-from-photo'].includes(pending.request.path)){pendingGeneration={before:normalizeCard(pending.before),request:pending.request};mode='ai';}}catch{ /* A pending download can still be retried in the current tab. */ }
     const params=new URLSearchParams(location.search),template=TEMPLATES.find(t=>t.key===params.get('template'));
@@ -598,5 +653,8 @@
   try{await loadCollection();await renderPrintPreview();await setupDuel();}catch{if($('#print-preview')){$('#print-source-note').textContent='Local storage is unavailable. Enable browser storage to use your collection.';}}
   ['#paper-size','#print-source'].forEach(id=>$(id)?.addEventListener('change',()=>renderPrintPreview().catch(e=>toast(e.message))));
   ['#battle-one','#battle-two','#battle-stat'].forEach(id=>$(id)?.addEventListener('change',()=>renderDuel()));
-  try{session=await request('/api/session');updateSessionUI();await handleReturns();await resumeStartedIdea();}catch{if($('#ai-status'))$('#ai-status').textContent='The AI service could not be reached. Keep creating with companions and your own photos.';$('#credit-summary').textContent='AI account services are offline. The free manual studio still works.';}
+  // Guide pages never create an anonymous account; only the studio (and the credits dialog, on demand) asks for a session.
+  if(preview){
+    try{session=await request('/api/session');updateSessionUI();await handleReturns();await resumeStartedIdea();}catch{if($('#ai-status'))$('#ai-status').textContent='The AI service could not be reached. Keep creating with companions and your own photos.';$('#credit-summary').textContent='AI account services are offline. The free manual studio still works.';}
+  }else if(!navigator.canShare)$$('[data-action="reveal-share"]').forEach(button=>button.hidden=true);
 })();

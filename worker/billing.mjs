@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import plans from '../lib/pricing.json' with { type: 'json' };
 import { clean, emailOf, validEmail, profile, getAccount, getAccountByEmail, problem, uid } from './storage.mjs';
+import { landingOf, campaignOf } from './metrics.mjs';
 export { plans };
 export function stripeClient(env){return new Stripe(env.STRIPE_SECRET_KEY,{httpClient:Stripe.createFetchHttpClient(),maxNetworkRetries:2});}
 export function validPurchase(session,stored){
@@ -39,7 +40,7 @@ export async function checkout(request,env,account,body){
  const priceId=env[`STRIPE_PRICE_${body.plan.toUpperCase()}`];
  const line=priceId?{price:priceId,quantity:1}:{price_data:{currency:'usd',unit_amount:plan.price,product_data:{name:`DIY Poké Card — ${plan.label}`,description:`${plan.credits} successful AI artwork generations. One-time purchase. No subscription.`}},quantity:1};
  const session=await stripe.checkout.sessions.create({mode:'payment',adaptive_pricing:{enabled:false},branding_settings:{display_name:'DIY Poké Card',background_color:'#faf9f6',button_color:'#5156ce',border_style:'rounded',icon:{type:'url',url:`${env.BASE_URL}/apple-touch-icon.png`}},line_items:[line],customer_email:account.email,client_reference_id:account.id,success_url:`${env.BASE_URL}/studio?payment=success&session_id={CHECKOUT_SESSION_ID}`,cancel_url:`${env.BASE_URL}/studio?payment=cancelled`,metadata:{app:'diypokecard',accountId:account.id,plan:body.plan,credits:String(plan.credits),email:account.email},payment_intent_data:{metadata:{app:'diypokecard',accountId:account.id,plan:body.plan}},expires_at:Math.floor(Date.now()/1000)+1800});
- await env.DB.prepare(`INSERT OR IGNORE INTO checkout_sessions(stripe_session_id,account_id,email,plan,credits_added,status) VALUES(?,?,?,?,?,'created')`).bind(session.id,account.id,account.email,body.plan,plan.credits).run();
+ await env.DB.prepare(`INSERT OR IGNORE INTO checkout_sessions(stripe_session_id,account_id,email,plan,credits_added,status,landing,campaign) VALUES(?,?,?,?,?,'created',?,?)`).bind(session.id,account.id,account.email,body.plan,plan.credits,landingOf(body.landing)||null,campaignOf(body.campaign,env)||null).run();
  return {url:session.url};
 }
 export async function webhook(request,env){

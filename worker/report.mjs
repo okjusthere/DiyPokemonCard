@@ -12,11 +12,12 @@ const esc=value=>String(value).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>'
 const short=day=>day.slice(5).replace('-','/');
 
 async function week(db,start,end){
- const [metrics,generations,purchases,started]=await Promise.all([
+ const [metrics,generations,purchases,started,attributed]=await Promise.all([
   db.prepare('SELECT name,SUM(count) AS total FROM daily_metrics WHERE day>=? AND day<? GROUP BY name').bind(start,end).all(),
   db.prepare('SELECT charge_source,status,COUNT(*) AS n FROM generation_attempts WHERE created_at>=? AND created_at<? GROUP BY charge_source,status').bind(start,end).all(),
   db.prepare("SELECT plan,COUNT(*) AS n FROM checkout_sessions WHERE status='completed' AND completed_at>=? AND completed_at<? GROUP BY plan").bind(start,end).all(),
-  db.prepare('SELECT COUNT(*) AS n FROM checkout_sessions WHERE created_at>=? AND created_at<?').bind(start,end).first()
+  db.prepare('SELECT COUNT(*) AS n FROM checkout_sessions WHERE created_at>=? AND created_at<?').bind(start,end).first(),
+  db.prepare("SELECT COALESCE(campaign,'(none)') AS campaign,COALESCE(landing,'(unknown)') AS landing,COUNT(*) AS n FROM checkout_sessions WHERE status='completed' AND completed_at>=? AND completed_at<? GROUP BY 1,2").bind(start,end).all()
  ]);
  const m=Object.fromEntries(metrics.results.map(r=>[r.name,Number(r.total)]));
  const generated=(source,status)=>generations.results.filter(r=>(!source||r.charge_source===source)&&r.status===status).reduce((n,r)=>n+Number(r.n),0);
@@ -26,7 +27,8 @@ async function week(db,start,end){
   orders+=n;gross+=n*plan.price;fees+=n*Math.round(plan.price*0.029+30);byPlan[plan.label]=(byPlan[plan.label]||0)+n;
  }
  const trial=generated('promo','completed'),paid=generated('paid','completed'),aiCost=(trial+paid)*AI_COST_CENTS;
- return {m,trial,paid,failed:generated(null,'refunded'),orders,byPlan,checkouts:Number(started?.n)||0,gross,fees,aiCost,net:gross-fees-aiCost,visitors:m.visitors||0};
+ const ordersBy=key=>{const out={};for(const row of attributed.results)out[row[key]]=(out[row[key]]||0)+Number(row.n);return out;};
+ return {m,trial,paid,failed:generated(null,'refunded'),orders,byPlan,ordersByCampaign:ordersBy('campaign'),ordersByLanding:ordersBy('landing'),checkouts:Number(started?.n)||0,gross,fees,aiCost,net:gross-fees-aiCost,visitors:m.visitors||0};
 }
 
 export async function weeklyReport(db,now=new Date()){
@@ -34,22 +36,31 @@ export async function weeklyReport(db,now=new Date()){
  const [current,previous,credits]=await Promise.all([week(db,start,end),week(db,previousStart,start),db.prepare('SELECT COALESCE(SUM(delta),0) AS n FROM credit_ledger').first()]);
  const metric=name=>[current.m[name]||0,previous.m[name]||0];
  const pick=key=>[current[key],previous[key]];
- const sourceNames={search:'搜索',direct:'直接访问',social:'社交',ai:'AI 助手',other:'其他'};
- const landings=Object.entries(current.m).filter(([name])=>name.startsWith('landing:')).sort((a,b)=>b[1]-a[1]).slice(0,5);
+ const sourceNames={search:'搜索',direct:'直接访问',social:'社交',ai:'AI 助手',paid:'付费广告',keepsake:'互动卡回流',other:'其他'};
+ const top=(prefix,n)=>Object.entries(current.m).filter(([name])=>name.startsWith(prefix)).sort((a,b)=>b[1]-a[1]).slice(0,n);
+ const landings=top('landing:',6),campaigns=top('campaign:',8),channelsSeen=top('channel:',6);
+ const sum=(...names)=>names.reduce((n,name)=>n+(current.m[name]||0),0),sumPrev=(...names)=>names.reduce((n,name)=>n+(previous.m[name]||0),0);
+ const attributed=(map,label)=>Object.entries(map).filter(([key])=>!key.startsWith('(')).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([key,n])=>[`${label} ${key}`,n,'—']);
  const sections=[
   ['流量',[
    ['访客（按天去重）',...pick('visitors')],['页面浏览',...metric('pageviews')],
    ...Object.entries(sourceNames).map(([key,label])=>[`来源 · ${label}`,...metric(`source:${key}`)]),
-   ...landings.map(([name])=>[`入口页 ${name.slice(8)}`,...metric(name)])
+   ...landings.map(([name])=>[`入口页 ${name.slice(8)}`,...metric(name)]),
+   ...campaigns.map(([name])=>[`活动 ${name.slice(9)}`,...metric(name)]),
+   ...channelsSeen.map(([name])=>[`渠道标记 ${name.slice(8)}`,...metric(name)])
   ]],
   ['创作漏斗（每次页面加载最多计一次）',[
-   ['开始一句话创作',...metric('ui:idea_start')],['改编案例',...metric('ui:example_remix')],['筛选灵感',...metric('ui:ideas_filter')],['从示例页生成变体',...metric('ui:variation_start')],['照片转 AI',...metric('ui:photo_to_ai')],['揭晓后直接下载',...metric('ui:reveal_download')],['改了卡片',...metric('ui:edit')],['加了照片',...metric('ui:photo')],['存进收藏',...metric('ui:save')],['下载 PNG',...metric('ui:png')],['下载互动卡',...metric('ui:keepsake')],['打印',...metric('ui:print')],['打开积分/购买窗口',...metric('ui:credits_open')],['惊喜卡',...metric('ui:surprise')],['对战',...metric('ui:duel')]
+   ['开始一句话创作',...metric('ui:idea_start')],['改编案例',...metric('ui:example_remix')],['筛选灵感',...metric('ui:ideas_filter')],['从示例页生成变体',...metric('ui:variation_start')],['照片转 AI',...metric('ui:photo_to_ai')],['揭晓后直接下载',...metric('ui:reveal_download')],['改了卡片',...metric('ui:edit')],['加了照片',...metric('ui:photo')],['存进收藏',...metric('ui:save')],['下载 PNG',...metric('ui:png')],['存第二张',...metric('ui:save2')],['下载互动卡',...metric('ui:keepsake')],['分享',...metric('ui:share')],['打印',...metric('ui:print')],['揭晓后再做一张',...metric('ui:reveal_another')],['邮件寄卡',...metric('ui:email_card')],['惊喜卡',...metric('ui:surprise')],['对战',...metric('ui:duel')]
+  ]],
+  ['付费墙',[
+   ['额度用完被拒（402）',...metric('ai_no_credit')],['同一网络试用已用（429）',...metric('ai_trial_ip_blocked')],['付费墙打开购买窗口',...metric('ui:credits_open_paywall')],['菜单打开购买窗口',sum('ui:credits_open_menu','ui:credits_open'),sumPrev('ui:credits_open_menu','ui:credits_open')],['结账出错',...metric('checkout_error')]
   ]],
   ['AI',[
-   ['免费试用生成',...pick('trial')],['付费生成',...pick('paid')],['失败并已退还',...pick('failed')],['试用额度用满（被拒次数）',...metric('ai_trial_cap_hit')],['付费额度用满（被拒次数）',...metric('ai_paid_cap_hit')],['拦截的品牌名',...metric('franchise_name_blocked')]
+   ['免费试用生成',...pick('trial')],['付费生成',...pick('paid')],['失败并已退还',...pick('failed')],['试用额度用满（被拒次数）',...metric('ai_trial_cap_hit')],['付费额度用满（被拒次数）',...metric('ai_paid_cap_hit')],['拦截的品牌名',...metric('franchise_name_blocked')],['生成 <5 秒',...metric('ui:generate_under5s')],['生成 5–15 秒',...metric('ui:generate_under15s')],['生成 15–30 秒',...metric('ui:generate_under30s')],['生成 >30 秒',...metric('ui:generate_over30s')]
   ]],
   ['收入',[
    ['发起结账',...pick('checkouts')],['成交订单',...pick('orders')],['付费转化率（订单/访客）',percent(current.orders,current.visitors),percent(previous.orders,previous.visitors)],
+   ...attributed(current.ordersByCampaign,'订单 · 活动'),...attributed(current.ordersByLanding,'订单 · 入口页'),
    ['收入',money(current.gross),money(previous.gross)],['Stripe 手续费（估算）',money(current.fees),money(previous.fees)],['AI 成本（估算）',money(current.aiCost),money(previous.aiCost)],['估算净额',money(current.net),money(previous.net)]
   ]]
  ];

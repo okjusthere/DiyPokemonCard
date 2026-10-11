@@ -1,5 +1,5 @@
 import { clean, problem, uid, rate, profile, getAccount, publicAccount, reserve, refund, complete } from './storage.mjs';
-import { track } from './metrics.mjs';
+import { track, isInternal } from './metrics.mjs';
 import model from '../public/card-model.js';
 const {normalizeCard,TYPES}=model;
 const colors=new Set(['red','blue','green','yellow','purple','pink','orange','white','black','rainbow']);
@@ -49,6 +49,8 @@ async function prepareIdea(env,idea) {
  return {...brief,description:clean(brief.description,700)};
 }
 export async function generateArtwork(request,env,account,input,fromPhoto,ipHash){
+ // The owner's test browsers must not move the paywall counters that pricing decisions read.
+ const count=(...names)=>request&&isInternal(request)?Promise.resolve():track(env.DB,...names);
  const color=clean(input.color,16),animal=clean(input.animal,16),power=clean(input.power,16);
  const idea=creativeIdea(input.prompt);
  let photo;
@@ -66,16 +68,21 @@ export async function generateArtwork(request,env,account,input,fromPhoto,ipHash
  await rate(env.DB,`ai-account:${account.id}`,paid?20:6,3600);
  // An initial trial is free; the IP guard prevents creating endless anonymous trial accounts. Paying accounts skip it.
  if(!paid){
-  const identity=`${ipHash}:${new Date().toISOString().slice(0,10)}`;
-  await env.DB.prepare('INSERT OR IGNORE INTO trial_claims(identity_hash,account_id) VALUES(?,?)').bind(identity,account.id).run();
-  const claim=await env.DB.prepare('SELECT account_id FROM trial_claims WHERE identity_hash=?').bind(identity).first();
-  if(claim.account_id!==account.id)throw problem('The free AI trial has already been used on this connection today. The manual studio stays free.',429);
+  // A few devices share one home connection, so the first N accounts per connection per day keep their trial; later ones are sent to the packs.
+  const prefix=`${ipHash}:${new Date().toISOString().slice(0,10)}:`,perConnection=Math.max(1,Number(env.TRIAL_PER_CONNECTION)||3);
+  await env.DB.prepare('INSERT OR IGNORE INTO trial_claims(identity_hash,account_id) VALUES(?,?)').bind(prefix+account.id,account.id).run();
+  const claims=await env.DB.prepare('SELECT account_id FROM trial_claims WHERE identity_hash>=? AND identity_hash<? ORDER BY claimed_at,rowid').bind(prefix,prefix.slice(0,-1)+';').all();
+  if(!claims.results.slice(0,perConnection).some(row=>row.account_id===account.id)){
+   await env.DB.prepare('DELETE FROM trial_claims WHERE identity_hash=?').bind(prefix+account.id).run();
+   await count('ai_trial_ip_blocked');
+   throw Object.assign(problem('Today’s free AI pictures on this connection are used up. Add a pack to keep going; editing, downloads and printing stay free.',429),{code:'trial_used'});
+  }
  }
  // Trials and paid work have separate daily ceilings, so free use can never block a paying customer.
  try{await rate(env.DB,paid?'ai-paid':'ai-trial',paid?dailyLimit(env.AI_PAID_DAILY_LIMIT,1000):dailyLimit(env.AI_TRIAL_DAILY_LIMIT,100),86400);}
  catch(error){
   if(error.status!==429)throw error;
-  await track(env.DB,paid?'ai_paid_cap_hit':'ai_trial_cap_hit');
+  await count(paid?'ai_paid_cap_hit':'ai_trial_cap_hit');
   throw problem(paid?'AI artwork is very busy right now. No credit was used. Please try again a little later.':'Today’s free AI trials are all used up. Try again tomorrow, or keep creating in the free studio.',429);
  }
  account=await profile(env.DB,account,{displayName:input.kidName,acceptTerms:fromPhoto&&input.acceptTerms,acceptPrivacy:fromPhoto&&input.acceptPrivacy,photoParentConsent:fromPhoto&&input.photoParentConsent});
@@ -96,7 +103,7 @@ export async function generateArtwork(request,env,account,input,fromPhoto,ipHash
    text=modelJSON(answer);
   }catch{/* Editable starter text remains available. */}
   let title=fromPhoto?clean(input.cardTitle,24):'';
-  if([text.name,text.attack,text.ability,title].some(franchiseName)){text={};title='';await track(env.DB,'franchise_name_blocked');}
+  if([text.name,text.attack,text.ability,title].some(franchiseName)){text={};title='';await count('franchise_name_blocked');}
   const card=normalizeCard({name:fromPhoto?title||text.name||'My little legend':text.name||`${color} ${animal}`,prompt:idea,type:brief&&Object.hasOwn(TYPES,brief.type)?brief.type:fromPhoto?'Psychic':powers[power]||'Normal',attack:text.attack||'A little everyday magic',ability:text.ability||'A one-of-a-kind companion with a story only you can tell.',trainer:account.display_name||'You',hp:90,damage:40,source:'ai',generationId:requestId,art:`/api/card/art/${requestId}`,artWidth:1024,artHeight:1024,layout:fromPhoto?'fullart':'classic',finish:'holo'});
   const key=`generated/${account.id}/${requestId}`;
   await env.ARTWORK.put(key,bytes,{httpMetadata:{contentType:mime}});

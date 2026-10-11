@@ -92,7 +92,7 @@
         <text x="87" y="755" font-size="${fittedSize(c.attack,27,405)}" font-weight="700">${escape(c.attack)}</text><text x="584" y="758" text-anchor="end" font-size="33" font-weight="700">${c.damage}</text>
         <line x1="42" y1="786" x2="588" y2="786" stroke="${full ? '#ffffff50' : t.color}"/>
         <text x="43" y="814" font-size="13">MADE BY ${escape(c.trainer.toUpperCase())}</text><text x="586" y="814" text-anchor="end" font-size="13" letter-spacing="2">${c.finish === 'matte' ? '◆' : '✦'} 001 / YOU</text>
-        <text x="315" y="846" text-anchor="middle" font-size="11" opacity=".7" letter-spacing="1.4">DIY POKÉ CARD · FAN-MADE · JUST FOR FUN</text>
+        <text x="315" y="846" text-anchor="middle" font-size="11" opacity=".7" letter-spacing="1.4">DIYPOKECARD.COM · FAN-MADE · JUST FOR FUN</text>
       </g>
       ${c.finish !== 'matte' ? `<rect x="16" y="16" width="598" height="848" rx="23" fill="url(#${p}-foil)"/>` : ''}
       ${c.finish === 'cosmic' ? `<g fill="#ffffff" opacity=".65">${Array.from({ length: 27 }, (_, i) => { const sx = 28 + (i * 137) % 570, sy = 110 + (i * 197) % 580; return `<path d="M${sx - 4} ${sy}h8m-4-4v8" stroke="white" stroke-width="1.4"/>`; }).join('')}</g>` : ''}

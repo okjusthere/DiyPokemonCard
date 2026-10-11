@@ -129,3 +129,47 @@ test('home sends ideas to the studio, and idea pages link back with real recipes
   assert.match(generator, /id="idea-start-form"/);
   assert.match(site.ideaPage('cinder-corgi'), /data-start-idea="[^"]{20,}"/);
 });
+
+test('new flow markers, gift pages, template downloads and the inactive mini pack', () => {
+  const studio = site.home({ studioOnly: true }), home = site.home();
+  for (const marker of ['id="consent-dialog"', 'data-ai-kind="photo"', 'id="reveal-email-form"', 'data-action="reveal-another"', 'data-action="reveal-share"', 'data-action="share"', 'value="agree"']) assert.ok(studio.includes(marker), marker);
+  assert.doesNotMatch(studio, /email-card-section/);
+  assert.doesNotMatch(home, /THE FREE POKÉMON CARD MAKER/);
+  assert.match(home, /intent=ai/);
+  assert.match(home, /Are these official Pokémon cards\?/, 'nominative mentions stay in the FAQ');
+  for (const route of ['/trading-card-template', '/christmas-trading-cards']) {
+    const page = site.pages[route], html = site.article(route);
+    assert.ok(page.title.length <= 70 && page.description.length <= 160, route);
+    for (const field of ['heading', 'label', 'cta', 'description']) assert.doesNotMatch(page[field], /Pok/i, `${route} ${field}`);
+    assert.ok(html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]*>/g, '').length > 6000, route);
+  }
+  assert.match(site.article('/trading-card-template'), /\/downloads\/trading-card-template-letter\.pdf/);
+  assert.match(site.article('/trading-card-template'), /<img src="\/downloads\/blank-trading-card\.png"/);
+  assert.match(site.sitemap(), /downloads\/blank-trading-card\.png<\/image:loc>/);
+  assert.match(site.legal('terms'), /15 for \$4\.99, 40 for \$9\.99 or 90 for \$19\.99 USD/);
+  assert.match(site.legal('privacy'), /Updated October 11, 2026/);
+  assert.ok(site.home().match(/<title>(.*?)<\/title>/)[1].length <= 60, 'home title fits a search result');
+  assert.equal((site.article('/christmas-trading-cards').match(/data-start-idea=/g) || []).length, 3);
+  assert.equal((site.article('/pet-trading-card').match(/data-start-idea=/g) || []).length, 3);
+  const pricing = require('../lib/pricing.json');
+  assert.equal(pricing.mini5.active, false); assert.equal(pricing.mini5.price, 199);
+  assert.doesNotMatch(studio, /\$1\.99/, 'inactive packs are not offered');
+  assert.match(svgCard(TEMPLATES[0], 'footer'), /DIYPOKECARD\.COM/);
+});
+
+test('the printable template builds valid PDFs at exact card size and a blank PNG', () => {
+  const { buildTemplatePdf, buildBlankCardPng, checkPdf } = require('../scripts/build-template-pdf');
+  for (const paper of ['a4', 'letter']) {
+    const pdf = buildTemplatePdf(paper), text = pdf.toString('latin1');
+    assert.ok(text.startsWith('%PDF-1.'), paper); assert.match(text, /%%EOF\s*$/);
+    assert.match(text, paper === 'a4' ? /MediaBox \[0 0 595\.28 841\.89\]/ : /MediaBox \[0 0 612 792\]/);
+    // Every xref offset must point at its object header, and the stream length must match the bytes.
+    const check = checkPdf(pdf);
+    assert.deepEqual(check.problems, [], paper); assert.ok(check.ok && check.objects >= 5, paper);
+    const startxref = Number(text.match(/startxref\s+(\d+)/)[1]);
+    assert.ok(text.slice(startxref, startxref + 4) === 'xref', 'startxref points at the table');
+  }
+  const png = buildBlankCardPng();
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(png.readUInt32BE(16), 945); assert.equal(png.readUInt32BE(20), 1320);
+});

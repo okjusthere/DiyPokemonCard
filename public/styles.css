@@ -74,3 +74,10 @@ details.restore-section[hidden]{display:none}
 /* Footer columns */
 .footer-columns{display:flex;flex-wrap:wrap;gap:34px}.footer-columns .footer-links{flex-direction:column;gap:9px;align-items:flex-start}.footer-links strong{font-size:10px;color:var(--ink);letter-spacing:.5px;text-transform:uppercase}.footer-btn{font-size:10px;padding:0;color:inherit;font-weight:400}
 @media(prefers-reduced-motion:reduce){.generating-spinner{animation-duration:2.4s}}
+/* Start-from toggle, consent dialog, reveal extras, share */
+.segmented.ai-kind{margin-bottom:16px;background:#f3f4fa}.segmented.ai-kind button{flex:1;justify-content:center;padding:9px 8px;font-size:11px;color:var(--muted)}.segmented.ai-kind button[aria-pressed=true],.segmented button[aria-pressed=true]{background:white;color:var(--ink);box-shadow:0 1px 3px #24283c1f}
+.consent-dialog{width:min(460px,calc(100vw - 32px));max-width:none;padding:0}.consent-dialog form{padding:28px}.consent-dialog h2{font-size:22px;margin:0 0 12px}.consent-dialog p{font-size:12px;line-height:1.7;color:var(--muted);margin:0 0 12px}.consent-dialog a{text-decoration:underline}.consent-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.consent-actions .btn{font-size:12px}
+.reveal-secondary{display:flex;justify-content:center;gap:18px;width:100%}.reveal-secondary .text-btn{width:auto}
+.reveal-email{width:100%;margin-top:10px;text-align:left}.reveal-email summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--blue);text-align:center;list-style:none}.reveal-email summary::-webkit-details-marker{display:none}.reveal-email[open] summary{margin-bottom:12px}.reveal-email .field{margin-bottom:10px}.reveal-email .btn{width:100%;font-size:12px}.reveal-email[hidden]{display:none}
+.hero-photo{font-size:12px;min-height:46px}.hero-secondary{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:18px}
+[data-action="share"][hidden],[data-action="reveal-share"][hidden]{display:none}
